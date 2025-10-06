@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "reCAPTCHA Auto Solver",
+  "version": "1.0.0",
+  "description": "Automatic reCAPTCHA solver for web scraping",
+  "permissions": [
+    "webRequest",
+    "webNavigation",
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["solver.js"],
+      "matches": ["*://*/*"]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  scraping-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scraping-api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HEADLESS=true
+      - BROWSER_POOL_SIZE=${BROWSER_POOL_SIZE:-5}
+      - MAX_CONCURRENT_REQUESTS=${MAX_CONCURRENT_REQUESTS:-3}
+      - REQUESTS_PER_MINUTE=${REQUESTS_PER_MINUTE:-60}
+      - BROWSER_MAX_IDLE_TIME=${BROWSER_MAX_IDLE_TIME:-300000}
+    shm_size: '2gb'  # Important for Chrome/Puppeteer in Docker
+    mem_limit: 2g
+    cpus: 2
+    healthcheck:
+      test: ["CMD", "bun", "run", "-e", "fetch('http://localhost:3000/health').then(r => r.ok ? process.exit(0) : process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - SYS_ADMIN  # Required for Chrome sandbox
+    # Optional: mount volume for logs or screenshots
+    # volumes:
+    #   - ./logs:/app/logs
+    #   - ./screenshots:/app/screenshots
