@@ -29,12 +29,14 @@ export class RecaptchaTestScraper extends BaseScraper<RecaptchaTestData> {
 
     // Navigate to the URL
     console.log(`Navigating to: ${url}`);
-    await this.navigateToUrl(url, 'domcontentloaded');
+    await this.navigateToUrl(url, 'networkidle2');
 
-    // Wait a bit for page to load
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Wait for reCAPTCHA to load (important!)
+    console.log('Waiting for reCAPTCHA to load...');
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     // Check if reCAPTCHA is present
+    console.log('Detecting reCAPTCHA...');
     const hadRecaptcha = await this.hasRecaptcha();
     console.log(`reCAPTCHA detected: ${hadRecaptcha}`);
 
@@ -80,18 +82,34 @@ export class GoogleRecaptchaDemoScraper extends BaseScraper<any> {
     const demoUrl = 'https://www.google.com/recaptcha/api2/demo';
 
     console.log(`Navigating to Google reCAPTCHA demo: ${demoUrl}`);
-    await this.navigateToUrl(demoUrl, 'domcontentloaded');
 
-    // Wait for page to load
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Best practice: Use networkidle0 for pages with dynamic content
+    await this.navigateToUrl(demoUrl, 'networkidle0');
+    console.log('Page loaded with networkidle0');
 
-    // Check for reCAPTCHA
+    // Check for reCAPTCHA (this now includes proper wait strategies)
+    console.log('Detecting reCAPTCHA...');
     const hasRecaptcha = await this.hasRecaptcha();
-    console.log(`reCAPTCHA found: ${hasRecaptcha}`);
+
+    // Debug: Log what's on the page
+    const pageInfo = await this.page.evaluate(() => {
+      return {
+        hasGrecaptcha: typeof (window as any).grecaptcha !== 'undefined',
+        iframes: Array.from(document.querySelectorAll('iframe')).map(f => f.src),
+        divs: Array.from(document.querySelectorAll('div[class*="recaptcha"]')).length,
+        scripts: Array.from(document.querySelectorAll('script[src*="recaptcha"]')).length,
+      };
+    });
+    console.log('Page info:', JSON.stringify(pageInfo, null, 2));
 
     if (!hasRecaptcha) {
+      // Take screenshot for debugging
+      await this.takeScreenshot('./debug-recaptcha.png');
+      console.log('Screenshot saved to debug-recaptcha.png');
       throw new Error('reCAPTCHA not found on demo page');
     }
+
+    console.log('✅ reCAPTCHA detected successfully!');
 
     // Solve reCAPTCHA
     console.log('Solving reCAPTCHA on demo page...');

@@ -10,6 +10,13 @@ A reusable web scraping API built with Bun and Puppeteer.
 - 🌐 RESTful API with native Bun HTTP server
 - 📦 TypeScript support
 - 🎨 Clean architecture with separation of concerns
+- 🤖 reCAPTCHA solver support (manual, 2captcha, anti-captcha, extension)
+- 🏊 Browser pooling for concurrent requests
+- ⚡ Request queue and rate limiting
+- 🔄 Auto-retry with exponential backoff
+- 🐳 Docker-ready with production optimizations
+- 📊 Built-in monitoring and metrics
+- ✅ Implements Puppeteer best practices
 
 ## Project Structure
 

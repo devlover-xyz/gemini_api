@@ -75,24 +75,46 @@ export abstract class BaseScraper<T = any> {
         launchArgs = [...baseArgs, ...this.recaptchaExtension.getLaunchArgs()];
       }
 
+      // Best practices from Puppeteer
       this.browser = await puppeteer.launch({
         headless: this.recaptchaExtension ? false : (this.config.headless ? 'new' : false),
         args: launchArgs,
         // Prevent memory leaks
         protocolTimeout: this.config.timeout,
+        // Improve performance
+        defaultViewport: this.config.viewport || { width: 1920, height: 1080 },
+        // Ignore HTTPS errors
+        ignoreHTTPSErrors: true,
       });
 
       this.page = await this.browser.newPage();
 
-      // Set resource limits
+      // Best practice: Set extra HTTP headers
+      await this.page.setExtraHTTPHeaders({
+        'Accept-Language': 'en-US,en;q=0.9',
+      });
+
+      // Set resource limits with proper error handling
       await this.page.setRequestInterception(true);
       this.page.on('request', (request) => {
-        // Block unnecessary resources to save memory
-        const resourceType = request.resourceType();
-        if (['image', 'stylesheet', 'font', 'media'].includes(resourceType)) {
-          request.abort();
-        } else {
-          request.continue();
+        try {
+          const resourceType = request.resourceType();
+          const url = request.url();
+
+          // Don't block reCAPTCHA resources
+          if (url.includes('recaptcha') || url.includes('gstatic.com') || url.includes('hcaptcha')) {
+            request.continue().catch(() => {});
+            return;
+          }
+
+          // Block unnecessary resources to save memory (but allow reCAPTCHA)
+          if (['image', 'stylesheet', 'font', 'media'].includes(resourceType)) {
+            request.abort().catch(() => {});
+          } else {
+            request.continue().catch(() => {});
+          }
+        } catch (error) {
+          // Ignore request interception errors
         }
       });
 
@@ -105,16 +127,43 @@ export abstract class BaseScraper<T = any> {
         console.error('Page error:', error);
       });
 
+      // Set user agent or use realistic default
       if (this.config.userAgent) {
         await this.page.setUserAgent(this.config.userAgent);
+      } else {
+        // Best practice: Use realistic user agent
+        await this.page.setUserAgent(
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        );
       }
 
-      if (this.config.viewport) {
+      // Viewport already set in browser launch options
+      // Only set if different from default
+      if (this.config.viewport &&
+          (this.config.viewport.width !== 1920 || this.config.viewport.height !== 1080)) {
         await this.page.setViewport(this.config.viewport);
       }
 
       await this.page.setDefaultNavigationTimeout(this.config.timeout!);
       await this.page.setDefaultTimeout(this.config.timeout!);
+
+      // Best practice: Evaluate on new document to bypass detection
+      await this.page.evaluateOnNewDocument(() => {
+        // Override navigator.webdriver
+        Object.defineProperty(navigator, 'webdriver', {
+          get: () => false,
+        });
+
+        // Override plugins
+        Object.defineProperty(navigator, 'plugins', {
+          get: () => [1, 2, 3, 4, 5],
+        });
+
+        // Override languages
+        Object.defineProperty(navigator, 'languages', {
+          get: () => ['en-US', 'en'],
+        });
+      });
 
       // Setup extension if enabled
       if (this.recaptchaExtension) {

@@ -23,20 +23,73 @@ export class RecaptchaSolver {
 
   /**
    * Detect if reCAPTCHA is present on the page
+   * Uses proper wait strategies and multiple detection methods
    */
   async detectRecaptcha(page: Page): Promise<boolean> {
     try {
-      const hasRecaptcha = await page.evaluate(() => {
-        // Check for reCAPTCHA v2
-        const recaptchaV2 = document.querySelector('.g-recaptcha, iframe[src*="recaptcha"]');
-        // Check for reCAPCHA v3
-        const recaptchaV3 = document.querySelector('script[src*="recaptcha"]');
-        // Check for hCaptcha
-        const hcaptcha = document.querySelector('.h-captcha, iframe[src*="hcaptcha"]');
+      // Strategy 1: Wait for iframe to appear (most reliable)
+      try {
+        await page.waitForSelector('iframe[src*="recaptcha"], iframe[title*="reCAPTCHA"]', {
+          timeout: 10000,
+          visible: true
+        });
+        console.log('✅ reCAPTCHA iframe detected via waitForSelector');
+        return true;
+      } catch (error) {
+        console.log('⏭️  No iframe found, trying other methods...');
+      }
 
-        return !!(recaptchaV2 || recaptchaV3 || hcaptcha);
+      // Strategy 2: Wait for grecaptcha object
+      try {
+        await page.waitForFunction(
+          () => typeof (window as any).grecaptcha !== 'undefined',
+          { timeout: 5000 }
+        );
+        console.log('✅ grecaptcha object detected');
+        return true;
+      } catch (error) {
+        console.log('⏭️  No grecaptcha object, trying DOM check...');
+      }
+
+      // Strategy 3: DOM element check
+      const hasRecaptcha = await page.evaluate(() => {
+        // Check for reCAPTCHA v2 elements
+        const recaptchaDiv = document.querySelector('.g-recaptcha');
+        const recaptchaIframe = document.querySelector('iframe[src*="recaptcha/api2/anchor"]');
+        const recaptchaFrame = document.querySelector('iframe[title*="reCAPTCHA"]');
+
+        // Check for reCAPTCHA v3
+        const recaptchaV3Script = document.querySelector('script[src*="recaptcha/api.js"], script[src*="recaptcha/enterprise.js"]');
+
+        // Check for hCaptcha
+        const hcaptchaDiv = document.querySelector('.h-captcha');
+        const hcaptchaIframe = document.querySelector('iframe[src*="hcaptcha"]');
+
+        // Also check for grecaptcha object
+        const hasGrecaptcha = typeof (window as any).grecaptcha !== 'undefined';
+
+        console.log('DOM Check:', {
+          recaptchaDiv: !!recaptchaDiv,
+          recaptchaIframe: !!recaptchaIframe,
+          recaptchaFrame: !!recaptchaFrame,
+          recaptchaV3Script: !!recaptchaV3Script,
+          hcaptchaDiv: !!hcaptchaDiv,
+          hcaptchaIframe: !!hcaptchaIframe,
+          hasGrecaptcha
+        });
+
+        return !!(
+          recaptchaDiv ||
+          recaptchaIframe ||
+          recaptchaFrame ||
+          recaptchaV3Script ||
+          hcaptchaDiv ||
+          hcaptchaIframe ||
+          hasGrecaptcha
+        );
       });
 
+      console.log('reCAPTCHA detection result (DOM):', hasRecaptcha);
       return hasRecaptcha;
     } catch (error) {
       console.error('Error detecting reCAPTCHA:', error);
