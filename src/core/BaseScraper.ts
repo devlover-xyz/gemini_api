@@ -1,6 +1,7 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import puppeteerExtra from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import UserAgent from 'user-agents';
 import type { ScraperConfig, ScraperResult, ScraperParams } from '../types/scraper';
 import { RecaptchaSolver } from '../utils/recaptcha';
 import { RecaptchaExtension, getExtensionLaunchArgs } from '../../libs/solver/loader';
@@ -133,17 +134,26 @@ export abstract class BaseScraper<T = any> {
       });
 
       this.page.on('pageerror', (error) => {
-        console.error('Page error:', error);
+        // Only log non-reCAPTCHA related errors
+        const errorMsg = error.message || error.toString();
+        if (!errorMsg.includes('solveSimpleChallenge') &&
+            !errorMsg.includes('recaptcha') &&
+            !errorMsg.includes('grecaptcha')) {
+          console.error('Page error:', error);
+        }
+        // Silently ignore reCAPTCHA-related script errors
       });
 
-      // Set user agent or use realistic default
+      // Set user agent - random or custom
       if (this.config.userAgent) {
         await this.page.setUserAgent(this.config.userAgent);
+        console.log(`[BaseScraper] Using custom User-Agent: ${this.config.userAgent.substring(0, 50)}...`);
       } else {
-        // Best practice: Use realistic user agent
-        await this.page.setUserAgent(
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        );
+        // Use random realistic user agent
+        const userAgent = new UserAgent();
+        const randomUA = userAgent.toString();
+        await this.page.setUserAgent(randomUA);
+        console.log(`[BaseScraper] Using random User-Agent: ${randomUA.substring(0, 50)}...`);
       }
 
       // Viewport already set in browser launch options

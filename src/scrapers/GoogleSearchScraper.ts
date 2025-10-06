@@ -54,6 +54,39 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
 
       // Check for Google's reCAPTCHA challenge page
       console.log('[GoogleSearchScraper] Checking for reCAPTCHA...');
+
+      // Strategy 1: Wait for page to be stable (max 8 seconds)
+      console.log('[GoogleSearchScraper] Waiting for page to stabilize...');
+      try {
+        await Promise.race([
+          // Wait for either search results or reCAPTCHA to appear
+          this.page.waitForFunction(() => {
+            return document.querySelector('#search') ||
+                   document.querySelector('#rso') ||
+                   document.querySelector('iframe[src*="recaptcha"]') ||
+                   document.body.textContent?.includes('unusual traffic') ||
+                   document.body.textContent?.includes('not a robot');
+          }, { timeout: 8000 }),
+          // Or wait minimum 3 seconds to let page render
+          new Promise((resolve) => setTimeout(resolve, 3000))
+        ]);
+      } catch (error) {
+        console.log('[GoogleSearchScraper] Page stabilize timeout, proceeding with check...');
+      }
+
+      // Additional wait for reCAPTCHA if detected early
+      const hasEarlyRecaptcha = await this.page.evaluate(() => {
+        return !!document.querySelector('iframe[src*="recaptcha"]') ||
+               document.body.textContent?.includes('unusual traffic') ||
+               document.body.textContent?.includes('not a robot');
+      });
+
+      if (hasEarlyRecaptcha) {
+        console.log('[GoogleSearchScraper] reCAPTCHA detected early, waiting 5s more for full load...');
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
+
+      // Now check for reCAPTCHA
       const pageContent = await this.page.content();
       const isRecaptchaPage = pageContent.includes('unusual traffic') ||
                                pageContent.includes('not a robot') ||
@@ -65,12 +98,26 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
         console.log('[GoogleSearchScraper] ⚠️  Google reCAPTCHA challenge detected');
         await this.takeScreenshot('./screenshots/google-search-recaptcha-detected.png');
 
-        // Wait for reCAPTCHA iframe to be visible
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        // Wait additional time for reCAPTCHA iframe to be fully interactive
+        console.log('[GoogleSearchScraper] Waiting for reCAPTCHA iframe to be ready...');
+        try {
+          await this.page.waitForSelector('iframe[src*="recaptcha"]', {
+            timeout: 10000,
+            visible: true
+          });
+          console.log('[GoogleSearchScraper] ✅ reCAPTCHA iframe is ready');
+
+          // Give extra time for iframe to become interactive (important for manual solving)
+          console.log('[GoogleSearchScraper] Waiting for iframe to become fully interactive (3s)...');
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+        } catch (error) {
+          console.log('[GoogleSearchScraper] ⚠️  reCAPTCHA iframe wait timeout, continuing anyway...');
+        }
 
         // Attempt to solve if solver is configured
         if (this.recaptchaSolver || this.recaptchaExtension) {
           console.log('[GoogleSearchScraper] Attempting to solve reCAPTCHA...');
+          console.log('[GoogleSearchScraper] 💡 TIP: If using manual solver, you can now click the reCAPTCHA checkbox');
           const solved = await this.solveRecaptcha();
 
           if (solved) {

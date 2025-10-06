@@ -12,6 +12,7 @@ A reusable web scraping API built with Bun and Puppeteer.
 - 🎨 Clean architecture with separation of concerns
 - 🤖 reCAPTCHA solver support (manual, 2captcha, anti-captcha, extension)
 - 🥷 Stealth mode using puppeteer-extra-plugin-stealth for anti-detection
+- 🎭 Random User-Agent rotation for each request
 - 🏊 Browser pooling for concurrent requests
 - ⚡ Request queue and rate limiting
 - 🔄 Auto-retry with exponential backoff
@@ -277,7 +278,7 @@ Each scraper can be configured with:
 
 - `headless` - Run browser in headless mode (default: true)
 - `timeout` - Navigation timeout in ms (default: 30000)
-- `userAgent` - Custom user agent
+- `userAgent` - Custom user agent (default: random realistic UA)
 - `viewport` - Browser viewport size (default: 1920x1080)
 
 Example:
@@ -292,6 +293,18 @@ Example:
   }
 }
 ```
+
+**Note**: If `userAgent` is not specified, each request will use a different random realistic user agent from the `user-agents` package. This helps avoid detection by preventing user agent-based tracking.
+
+## Troubleshooting
+
+Having issues? Check the [TROUBLESHOOTING.md](TROUBLESHOOTING.md) guide for common problems and solutions:
+
+- Google blocking with reCAPTCHA
+- Page errors (`solveSimpleChallenge is not defined`)
+- Request timeouts
+- Navigation errors
+- And more...
 
 ## License
 

@@ -11,9 +11,21 @@
 - Added `test-stealth.ts` for verification
 - Created `STEALTH.md` documentation
 
+#### 🎭 Random User-Agent Rotation
+- Integrated `user-agents` package for realistic UA generation
+- Each request uses a different random user agent
+- Supports Chrome, Firefox, Safari (desktop & mobile)
+- Custom UA still supported via config
+- Added `test-ua-simple.ts` for verification
+- Automatic logging of UA being used
+
 #### 🛡️ Google Search reCAPTCHA Handling
 - Added reCAPTCHA detection for Google Search scraper
 - Detects Google's "unusual traffic" challenge page
+- **Smart detection with multi-stage wait strategy**:
+  - Page stabilization (3-8 seconds with dynamic detection)
+  - Early detection + additional 5s wait if reCAPTCHA found
+  - Iframe readiness verification
 - Automatic screenshot capture when reCAPTCHA is detected
 - Clear error messages with solver configuration instructions
 - Re-navigation after successful reCAPTCHA solve
@@ -55,6 +67,8 @@
 - ❌ Fixed resource blocking that prevented Google from loading properly
 - ❌ Fixed reCAPTCHA not being detected on Google's challenge page
 - ❌ Fixed missing error context in failures
+- ❌ Fixed `solveSimpleChallenge is not defined` error spam from Google reCAPTCHA page
+- ❌ Improved error messages with clear instructions for reCAPTCHA solving
 
 ## Implementation Details
 
@@ -62,15 +76,20 @@
 
 1. **src/core/BaseScraper.ts**
    - Added stealth plugin import and initialization
+   - Added `user-agents` package integration
    - Switched to `puppeteerExtra.launch()`
-   - Removed manual anti-detection code
+   - Random UA generation for each request
+   - Removed manual anti-detection code (handled by stealth plugin)
    - Improved resource whitelisting (lines 104-123)
+   - UA logging for debugging
 
 2. **src/scrapers/GoogleSearchScraper.ts**
-   - Added comprehensive reCAPTCHA detection (lines 55-106)
+   - Added comprehensive reCAPTCHA detection (lines 55-130)
+   - Multi-stage wait strategy for reCAPTCHA loading
    - Navigation timeout protection (lines 38-53)
    - Screenshot capture at all critical points
    - Better error messages with troubleshooting info
+   - Dynamic page stabilization with `waitForFunction`
 
 3. **src/routes/scraper.routes.ts**
    - Added 60-second timeout protection (lines 27-35, 61-69)
@@ -83,9 +102,13 @@
 ### Files Created
 
 1. **STEALTH.md** - Complete stealth mode documentation
-2. **test-stealth.ts** - Stealth plugin verification script
-3. **screenshots/.gitkeep** - Screenshots folder marker
-4. **CHANGELOG.md** - This file
+2. **TROUBLESHOOTING.md** - Common issues and solutions guide
+3. **test-stealth.ts** - Stealth plugin verification script
+4. **test-ua-simple.ts** - User-Agent generation test
+5. **test-google-with-solver.ts** - Google search with manual reCAPTCHA solver
+6. **test-google-simple.ts** - Simple Google search test
+7. **screenshots/.gitkeep** - Screenshots folder marker
+8. **CHANGELOG.md** - This file
 
 ## Testing
 
@@ -95,6 +118,13 @@ bun test-stealth.ts
 ```
 
 Expected: `webdriver: false`, `plugins: 5`, `hasChrome: true`
+
+### Test Random User-Agent
+```bash
+bun test-ua-simple.ts
+```
+
+Expected: 5 different realistic user agents (Chrome, Firefox, Safari, Mobile)
 
 ### Test Google Search (Without Solver)
 ```bash

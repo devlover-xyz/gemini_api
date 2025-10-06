@@ -17,8 +17,14 @@ The stealth plugin automatically handles:
 ✅ **Fonts** - Font fingerprinting protection
 ✅ **Media codecs** - Proper codec support
 
+Plus additional features:
+
+✅ **Random User-Agent** - Different realistic UA for each request
+✅ **User-Agent rotation** - Prevents UA-based tracking
+
 ## Testing
 
+### Test Stealth Plugin
 Run the stealth test to verify it's working:
 
 ```bash
@@ -36,14 +42,24 @@ Expected output:
 }
 ```
 
+### Test Random User-Agent
+Test that random user agents are being generated:
+
+```bash
+bun test-ua-simple.ts
+```
+
+Expected output: 5 different realistic user agents
+
 ## How It Works
 
-The stealth plugin is automatically applied to all scrapers through `BaseScraper`:
+The stealth plugin and random user agents are automatically applied to all scrapers through `BaseScraper`:
 
 ```typescript
 // src/core/BaseScraper.ts
 import puppeteerExtra from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import UserAgent from 'user-agents';
 
 // Add stealth plugin
 puppeteerExtra.use(StealthPlugin());
@@ -53,7 +69,21 @@ this.browser = await puppeteerExtra.launch({
   headless: true,
   args: [/* ... */]
 });
+
+// Set random user agent
+const userAgent = new UserAgent();
+await this.page.setUserAgent(userAgent.toString());
 ```
+
+### User-Agent Examples
+
+The `user-agents` package provides realistic user agents from:
+- Chrome (Windows, macOS, Linux)
+- Firefox (Windows, macOS, Linux)
+- Safari (macOS, iOS)
+- Mobile browsers (iOS, Android)
+
+Each request gets a different, random user agent to avoid detection.
 
 ## Benefits
 

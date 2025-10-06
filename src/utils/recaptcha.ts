@@ -17,7 +17,7 @@ export class RecaptchaSolver {
     this.config = {
       provider: config.provider || 'manual',
       apiKey: config.apiKey || process.env.RECAPTCHA_API_KEY,
-      timeout: config.timeout || 120000, // 2 minutes default
+      timeout: config.timeout || 180000, // 3 minutes default (for manual solving)
     };
   }
 
@@ -260,25 +260,40 @@ export class RecaptchaSolver {
    * Manual solving - wait for user input
    */
   private async solveManually(page: Page): Promise<boolean> {
-    console.log('⚠️  Manual reCAPTCHA solving required');
-    console.log('Please solve the captcha manually in the browser...');
-    console.log(`Waiting up to ${this.config.timeout! / 1000} seconds...`);
+    console.log('\n🤖 ═══════════════════════════════════════════════════');
+    console.log('⚠️  MANUAL reCAPTCHA SOLVING REQUIRED');
+    console.log('═══════════════════════════════════════════════════');
+    console.log('📌 The browser window is now open');
+    console.log('📌 Please click the reCAPTCHA checkbox');
+    console.log('📌 Complete any image challenges if they appear');
+    console.log(`📌 You have ${this.config.timeout! / 1000} seconds to complete`);
+    console.log('═══════════════════════════════════════════════════\n');
 
     const startTime = Date.now();
+    let lastCheck = 0;
 
     while (Date.now() - startTime < this.config.timeout!) {
       // Check if captcha is still present
       const hasCaptcha = await this.detectRecaptcha(page);
 
       if (!hasCaptcha) {
-        console.log('✅ Captcha solved manually');
+        console.log('✅ Captcha solved manually!\n');
         return true;
+      }
+
+      // Show progress every 10 seconds
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      if (elapsed - lastCheck >= 10) {
+        const remaining = Math.floor((this.config.timeout! - (Date.now() - startTime)) / 1000);
+        console.log(`⏳ Still waiting... (${remaining}s remaining)`);
+        lastCheck = elapsed;
       }
 
       // Wait a bit before checking again
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
+    console.log('\n❌ Manual captcha solving timeout - time limit exceeded\n');
     throw new Error('Manual captcha solving timeout');
   }
 
