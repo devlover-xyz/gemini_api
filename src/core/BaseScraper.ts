@@ -1,7 +1,12 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
+import puppeteerExtra from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import type { ScraperConfig, ScraperResult, ScraperParams } from '../types/scraper';
 import { RecaptchaSolver } from '../utils/recaptcha';
 import { RecaptchaExtension, getExtensionLaunchArgs } from '../../libs/solver/loader';
+
+// Add stealth plugin to puppeteer-extra
+puppeteerExtra.use(StealthPlugin());
 
 export abstract class BaseScraper<T = any> {
   protected browser?: Browser;
@@ -75,8 +80,8 @@ export abstract class BaseScraper<T = any> {
         launchArgs = [...baseArgs, ...this.recaptchaExtension.getLaunchArgs()];
       }
 
-      // Best practices from Puppeteer
-      this.browser = await puppeteer.launch({
+      // Use puppeteer-extra with stealth plugin for better anti-detection
+      this.browser = await puppeteerExtra.launch({
         headless: this.recaptchaExtension ? false : (this.config.headless ? 'new' : false),
         args: launchArgs,
         // Prevent memory leaks
@@ -85,7 +90,7 @@ export abstract class BaseScraper<T = any> {
         defaultViewport: this.config.viewport || { width: 1920, height: 1080 },
         // Ignore HTTPS errors
         ignoreHTTPSErrors: true,
-      });
+      }) as Browser;
 
       this.page = await this.browser.newPage();
 
@@ -101,14 +106,18 @@ export abstract class BaseScraper<T = any> {
           const resourceType = request.resourceType();
           const url = request.url();
 
-          // Don't block reCAPTCHA resources
-          if (url.includes('recaptcha') || url.includes('gstatic.com') || url.includes('hcaptcha')) {
+          // Whitelist critical resources
+          if (url.includes('recaptcha') ||
+              url.includes('gstatic.com') ||
+              url.includes('hcaptcha') ||
+              url.includes('google.com') ||
+              url.includes('googleapis.com')) {
             request.continue().catch(() => {});
             return;
           }
 
-          // Block unnecessary resources to save memory (but allow reCAPTCHA)
-          if (['image', 'stylesheet', 'font', 'media'].includes(resourceType)) {
+          // Only block heavy resources (not stylesheet - Google needs CSS!)
+          if (['image', 'font', 'media'].includes(resourceType)) {
             request.abort().catch(() => {});
           } else {
             request.continue().catch(() => {});
@@ -147,23 +156,14 @@ export abstract class BaseScraper<T = any> {
       await this.page.setDefaultNavigationTimeout(this.config.timeout!);
       await this.page.setDefaultTimeout(this.config.timeout!);
 
-      // Best practice: Evaluate on new document to bypass detection
-      await this.page.evaluateOnNewDocument(() => {
-        // Override navigator.webdriver
-        Object.defineProperty(navigator, 'webdriver', {
-          get: () => false,
-        });
-
-        // Override plugins
-        Object.defineProperty(navigator, 'plugins', {
-          get: () => [1, 2, 3, 4, 5],
-        });
-
-        // Override languages
-        Object.defineProperty(navigator, 'languages', {
-          get: () => ['en-US', 'en'],
-        });
-      });
+      // Note: Anti-detection is now handled by puppeteer-extra-plugin-stealth
+      // The stealth plugin automatically handles:
+      // - navigator.webdriver
+      // - chrome runtime
+      // - plugins array
+      // - languages
+      // - permissions
+      // - and many other detection vectors
 
       // Setup extension if enabled
       if (this.recaptchaExtension) {

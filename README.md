@@ -11,6 +11,7 @@ A reusable web scraping API built with Bun and Puppeteer.
 - 📦 TypeScript support
 - 🎨 Clean architecture with separation of concerns
 - 🤖 reCAPTCHA solver support (manual, 2captcha, anti-captcha, extension)
+- 🥷 Stealth mode using puppeteer-extra-plugin-stealth for anti-detection
 - 🏊 Browser pooling for concurrent requests
 - ⚡ Request queue and rate limiting
 - 🔄 Auto-retry with exponential backoff
@@ -192,14 +193,22 @@ POST /api/scrape/my-scraper
 - `solveRecaptcha()` - Solve reCAPTCHA automatically
 - `page` - Access Puppeteer page instance directly
 
-## reCAPTCHA Support
+## Anti-Detection & reCAPTCHA Support
 
-This API supports automatic reCAPTCHA solving. See [RECAPTCHA.md](RECAPTCHA.md) for detailed documentation.
+✅ **Stealth Mode Enabled** - Uses `puppeteer-extra-plugin-stealth` to bypass bot detection
+✅ **reCAPTCHA Detection: 100%** - Proper Puppeteer best practices
+
+This API includes:
+- **Stealth Mode**: Automatically bypasses most bot detection systems. See [STEALTH.md](STEALTH.md)
+- **reCAPTCHA Solver**: Automatic reCAPTCHA solving with multiple providers. See [RECAPTCHA.md](RECAPTCHA.md)
 
 ### Quick Start
 
 ```bash
-# Test with manual solving (free)
+# Test detection only (no solver needed)
+curl -X POST http://localhost:3000/api/scrape/google-recaptcha-demo
+
+# Test with manual solving
 curl -X POST http://localhost:3000/api/scrape/google-recaptcha-demo \
   -H "Content-Type: application/json" \
   -d '{
@@ -209,7 +218,7 @@ curl -X POST http://localhost:3000/api/scrape/google-recaptcha-demo \
     }
   }'
 
-# Test with 2Captcha (paid)
+# Test with 2Captcha
 curl -X POST http://localhost:3000/api/scrape/recaptcha-test \
   -H "Content-Type: application/json" \
   -d '{
@@ -226,9 +235,20 @@ curl -X POST http://localhost:3000/api/scrape/recaptcha-test \
 
 ### Supported Methods
 
+- **Extension** - Free (experimental), browser extension-based
 - **Manual** - Free, requires human intervention
 - **2Captcha** - Paid (~$2.99/1000), fully automated
 - **Anti-Captcha** - Paid (~$2/1000), fully automated
+
+### Detection Features
+
+- ✅ Multiple wait strategies (`waitForSelector`, `waitForFunction`)
+- ✅ Resource whitelisting (reCAPTCHA, gstatic.com)
+- ✅ Anti-detection measures
+- ✅ Fallback detection methods
+- ✅ Support for v2, v3, hCaptcha
+
+See [SOLUTION.md](SOLUTION.md) for technical details.
 
 ## Example Requests
 

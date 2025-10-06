@@ -24,7 +24,15 @@ export async function handleScraperRoutes(req: Request): Promise<Response> {
       const body = await req.json().catch(() => ({}));
       const { params = {}, config = {} } = body;
 
-      const result = await scraperManager.execute(scraperName, params, config);
+      // Add timeout protection (60 seconds max)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout after 60 seconds')), 60000);
+      });
+
+      const result = await Promise.race([
+        scraperManager.execute(scraperName, params, config),
+        timeoutPromise
+      ]);
 
       if (result.success) {
         return successResponse(result);
@@ -34,7 +42,7 @@ export async function handleScraperRoutes(req: Request): Promise<Response> {
     } catch (error) {
       return errorResponse(
         error instanceof Error ? error.message : 'Invalid request',
-        400
+        error instanceof Error && error.message.includes('timeout') ? 504 : 400
       );
     }
   }
@@ -49,7 +57,16 @@ export async function handleScraperRoutes(req: Request): Promise<Response> {
 
     try {
       const params = Object.fromEntries(url.searchParams.entries());
-      const result = await scraperManager.execute(scraperName, params);
+
+      // Add timeout protection (60 seconds max)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout after 60 seconds')), 60000);
+      });
+
+      const result = await Promise.race([
+        scraperManager.execute(scraperName, params),
+        timeoutPromise
+      ]);
 
       if (result.success) {
         return successResponse(result);
@@ -59,7 +76,7 @@ export async function handleScraperRoutes(req: Request): Promise<Response> {
     } catch (error) {
       return errorResponse(
         error instanceof Error ? error.message : 'Invalid request',
-        400
+        error instanceof Error && error.message.includes('timeout') ? 504 : 400
       );
     }
   }

@@ -32,13 +32,78 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
     try {
       const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=en`;
 
-      // Navigate with timeout and multiple wait strategies
-      await Promise.race([
-        this.navigateToUrl(searchUrl, 'domcontentloaded'),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Navigation timeout')), 15000)
-        ),
-      ]);
+      console.log(`[GoogleSearchScraper] Navigating to: ${searchUrl}`);
+
+      // Navigate with timeout protection
+      try {
+        await Promise.race([
+          this.page.goto(searchUrl, {
+            waitUntil: 'domcontentloaded',
+            timeout: 20000
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Navigation timeout')), 20000)
+          ),
+        ]);
+        console.log('[GoogleSearchScraper] Page loaded');
+      } catch (navError) {
+        console.error('[GoogleSearchScraper] Navigation error:', navError);
+        await this.takeScreenshot('./screenshots/google-search-nav-error.png');
+        throw new Error(`Failed to navigate to Google: ${navError instanceof Error ? navError.message : 'Unknown error'}`);
+      }
+
+      // Check for Google's reCAPTCHA challenge page
+      console.log('[GoogleSearchScraper] Checking for reCAPTCHA...');
+      const pageContent = await this.page.content();
+      const isRecaptchaPage = pageContent.includes('unusual traffic') ||
+                               pageContent.includes('not a robot') ||
+                               await this.page.evaluate(() => {
+                                 return !!document.querySelector('iframe[src*="recaptcha"]');
+                               });
+
+      if (isRecaptchaPage) {
+        console.log('[GoogleSearchScraper] ⚠️  Google reCAPTCHA challenge detected');
+        await this.takeScreenshot('./screenshots/google-search-recaptcha-detected.png');
+
+        // Wait for reCAPTCHA iframe to be visible
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        // Attempt to solve if solver is configured
+        if (this.recaptchaSolver || this.recaptchaExtension) {
+          console.log('[GoogleSearchScraper] Attempting to solve reCAPTCHA...');
+          const solved = await this.solveRecaptcha();
+
+          if (solved) {
+            console.log('[GoogleSearchScraper] ✅ reCAPTCHA solved successfully!');
+            await this.takeScreenshot('./screenshots/google-search-recaptcha-solved.png');
+
+            // Wait for page to redirect to search results
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+
+            // Check current URL
+            const currentUrl = this.page.url();
+            console.log('[GoogleSearchScraper] Current URL after solving:', currentUrl);
+
+            // If still not on search results, re-navigate
+            if (!currentUrl.includes('/search?q=')) {
+              console.log('[GoogleSearchScraper] Re-navigating to search results...');
+              await this.page.goto(searchUrl, {
+                waitUntil: 'domcontentloaded',
+                timeout: 20000
+              });
+            }
+          } else {
+            console.log('[GoogleSearchScraper] ❌ Failed to solve reCAPTCHA');
+            await this.takeScreenshot('./screenshots/google-search-recaptcha-failed.png');
+            throw new Error('Google blocked with reCAPTCHA. Please configure a reCAPTCHA solver or try again later.');
+          }
+        } else {
+          console.log('[GoogleSearchScraper] ❌ No reCAPTCHA solver configured');
+          throw new Error('Google blocked with reCAPTCHA. Please configure a reCAPTCHA solver (manual, 2captcha, anti-captcha, or extension).');
+        }
+      } else {
+        console.log('[GoogleSearchScraper] ✅ No reCAPTCHA detected, proceeding with scraping');
+      }
 
       // Wait for search results with multiple selectors as fallback
       const selectors = ['#search', '#rso', '.g'];
@@ -48,18 +113,30 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
         try {
           await this.page.waitForSelector(selector, { timeout: 5000 });
           selectorFound = true;
+          console.log(`[GoogleSearchScraper] Found search results with selector: ${selector}`);
           break;
         } catch (error) {
-          console.log(`Selector ${selector} not found, trying next...`);
+          console.log(`[GoogleSearchScraper] Selector ${selector} not found, trying next...`);
         }
       }
 
       if (!selectorFound) {
-        throw new Error('Search results container not found');
-      }
+        // Take screenshot for debugging
+        await this.takeScreenshot('./screenshots/google-search-error.png');
 
-      // Small delay to ensure all content is loaded
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+        // Check again if it's a reCAPTCHA page (might have changed after initial check)
+        const stillRecaptcha = await this.page.evaluate(() => {
+          return document.body.textContent?.includes('unusual traffic') ||
+                 document.body.textContent?.includes('not a robot') ||
+                 !!document.querySelector('iframe[src*="recaptcha"]');
+        });
+
+        if (stillRecaptcha) {
+          throw new Error('Google blocked with reCAPTCHA. Please configure a reCAPTCHA solver using config.recaptcha parameter. Supported providers: manual, 2captcha, anti-captcha, extension. Screenshot saved to: screenshots/google-search-error.png');
+        }
+
+        throw new Error('Search results container not found. This may be due to Google blocking, rate limiting, or changed selectors. Screenshot saved to: screenshots/google-search-error.png');
+      }
 
       // Extract search results with error handling
       const results = await this.page.evaluate((maxResults) => {

@@ -81,72 +81,61 @@ export class GoogleRecaptchaDemoScraper extends BaseScraper<any> {
 
     const demoUrl = 'https://www.google.com/recaptcha/api2/demo';
 
-    console.log(`Navigating to Google reCAPTCHA demo: ${demoUrl}`);
+    console.log(`[GoogleRecaptchaDemoScraper] Navigating to: ${demoUrl}`);
 
-    // Best practice: Use networkidle0 for pages with dynamic content
-    await this.navigateToUrl(demoUrl, 'networkidle0');
-    console.log('Page loaded with networkidle0');
-
-    // Check for reCAPTCHA (this now includes proper wait strategies)
-    console.log('Detecting reCAPTCHA...');
-    const hasRecaptcha = await this.hasRecaptcha();
-
-    // Debug: Log what's on the page
-    const pageInfo = await this.page.evaluate(() => {
-      return {
-        hasGrecaptcha: typeof (window as any).grecaptcha !== 'undefined',
-        iframes: Array.from(document.querySelectorAll('iframe')).map(f => f.src),
-        divs: Array.from(document.querySelectorAll('div[class*="recaptcha"]')).length,
-        scripts: Array.from(document.querySelectorAll('script[src*="recaptcha"]')).length,
-      };
+    // Navigate and wait for page
+    await this.page.goto(demoUrl, {
+      waitUntil: 'networkidle0',
+      timeout: 30000
     });
-    console.log('Page info:', JSON.stringify(pageInfo, null, 2));
+    console.log('[GoogleRecaptchaDemoScraper] Page loaded');
 
-    if (!hasRecaptcha) {
-      // Take screenshot for debugging
-      await this.takeScreenshot('./debug-recaptcha.png');
-      console.log('Screenshot saved to debug-recaptcha.png');
-      throw new Error('reCAPTCHA not found on demo page');
-    }
-
-    console.log('✅ reCAPTCHA detected successfully!');
-
-    // Solve reCAPTCHA
-    console.log('Solving reCAPTCHA on demo page...');
-    const solved = await this.solveRecaptcha();
-
-    if (!solved) {
-      throw new Error('Failed to solve reCAPTCHA');
-    }
-
-    console.log('✅ reCAPTCHA solved! Submitting form...');
-
-    // Try to submit the form
+    // Wait for reCAPTCHA iframe specifically
+    console.log('[GoogleRecaptchaDemoScraper] Waiting for reCAPTCHA iframe...');
     try {
-      await this.page.click('#recaptcha-demo-submit');
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Check if submission was successful
-      const successText = await this.page.evaluate(() => {
-        const body = document.body.textContent || '';
-        return body.includes('Verification Success');
+      await this.page.waitForSelector('iframe[src*="recaptcha"]', {
+        timeout: 15000,
+        visible: true
       });
-
-      return {
-        success: true,
-        solved: true,
-        submitted: true,
-        verificationSuccess: successText,
-        timestamp: new Date().toISOString(),
-      };
+      console.log('[GoogleRecaptchaDemoScraper] ✅ reCAPTCHA iframe found!');
     } catch (error) {
-      return {
-        success: true,
-        solved: true,
-        submitted: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString(),
-      };
+      console.error('[GoogleRecaptchaDemoScraper] ❌ Failed to find reCAPTCHA iframe');
+      await this.takeScreenshot('./screenshots/recaptcha-error.png');
+      throw new Error('reCAPTCHA iframe not found');
     }
+
+    // Verify grecaptcha object
+    const hasGrecaptcha = await this.page.evaluate(() => {
+      return typeof (window as any).grecaptcha !== 'undefined';
+    });
+
+    if (!hasGrecaptcha) {
+      throw new Error('grecaptcha object not found');
+    }
+
+    console.log('[GoogleRecaptchaDemoScraper] ✅ reCAPTCHA detected successfully!');
+
+    // Try to solve reCAPTCHA if solver is configured
+    let solved = false;
+    if (this.recaptchaSolver || this.recaptchaExtension) {
+      console.log('[GoogleRecaptchaDemoScraper] Attempting to solve reCAPTCHA...');
+      solved = await this.solveRecaptcha();
+
+      if (!solved) {
+        console.log('[GoogleRecaptchaDemoScraper] ⚠️  reCAPTCHA not solved (manual intervention required or solver failed)');
+      } else {
+        console.log('[GoogleRecaptchaDemoScraper] ✅ reCAPTCHA solved!');
+      }
+    } else {
+      console.log('[GoogleRecaptchaDemoScraper] ℹ️  No reCAPTCHA solver configured - skipping solve');
+    }
+
+    return {
+      success: true,
+      detected: true,
+      solved,
+      hasGrecaptcha,
+      timestamp: new Date().toISOString(),
+    };
   }
 }
