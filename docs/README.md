@@ -29,6 +29,7 @@ Complete documentation for the Scraping API project.
 
 - **[CHANGELOG.md](CHANGELOG.md)** - Project changelog
 - **[RECAPTCHA_FIX.md](RECAPTCHA_FIX.md)** - reCAPTCHA auto-click fix details
+- **[RECAPTCHA_RELOAD_FIX.md](RECAPTCHA_RELOAD_FIX.md)** - reCAPTCHA reload/challenge handling fix
 - **[CHANGELOG_TAB_FIX.md](CHANGELOG_TAB_FIX.md)** - Browser tab optimization changelog
 - **[TAB_OPTIMIZATION_SUMMARY.md](TAB_OPTIMIZATION_SUMMARY.md)** - Tab optimization summary
 - **[CHROME_EXTENSIONS_SUMMARY.md](CHROME_EXTENSIONS_SUMMARY.md)** - Chrome extensions quick reference
@@ -49,7 +50,7 @@ Complete documentation for the Scraping API project.
 3. [BEST-PRACTICES.md](BEST-PRACTICES.md) - Follow best practices
 
 ### Features
-- **reCAPTCHA**: [RECAPTCHA.md](RECAPTCHA.md) + [RECAPTCHA_FIX.md](RECAPTCHA_FIX.md)
+- **reCAPTCHA**: [RECAPTCHA.md](RECAPTCHA.md) + [RECAPTCHA_FIX.md](RECAPTCHA_FIX.md) + [RECAPTCHA_RELOAD_FIX.md](RECAPTCHA_RELOAD_FIX.md)
 - **Stealth**: [STEALTH.md](STEALTH.md)
 - **Extensions**: [CHROME_EXTENSIONS.md](CHROME_EXTENSIONS.md)
 
@@ -80,6 +81,7 @@ Complete documentation for the Scraping API project.
 ### reCAPTCHA
 - [RECAPTCHA.md](RECAPTCHA.md) - Complete guide
 - [RECAPTCHA_FIX.md](RECAPTCHA_FIX.md) - Auto-click fix
+- [RECAPTCHA_RELOAD_FIX.md](RECAPTCHA_RELOAD_FIX.md) - Reload/challenge handling fix
 
 ### Browser Optimization
 - [TAB_OPTIMIZATION_SUMMARY.md](TAB_OPTIMIZATION_SUMMARY.md) - Tab optimization
@@ -108,4 +110,4 @@ When adding new documentation:
 ---
 
 **Last Updated:** 2025-10-07
-**Total Docs:** 18 files
+**Total Docs:** 19 files
