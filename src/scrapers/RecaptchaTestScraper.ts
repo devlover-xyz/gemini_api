@@ -24,11 +24,13 @@ export class RecaptchaTestScraper extends BaseScraper<RecaptchaTestData> {
 
     // Merge config with extension defaults
     const configWithExtension: ScraperConfig = {
+      timeout: 180000, // 3 minutes for manual solving + submit + view result
       ...config,
       recaptcha: {
         enabled: true,
         provider: config.recaptcha?.provider || 'extension',
         extensionPath: config.recaptcha?.extensionPath || extensionPath,
+        timeout: 180000, // 3 minutes for solving
         ...config.recaptcha,
       },
     };
@@ -36,6 +38,7 @@ export class RecaptchaTestScraper extends BaseScraper<RecaptchaTestData> {
     super(configWithExtension);
 
     console.log('[RecaptchaTestScraper] Chrome extension path:', extensionPath);
+    console.log('[RecaptchaTestScraper] Timeout set to:', configWithExtension.timeout, 'ms (3 minutes)');
   }
   protected async scrape(params: ScraperParams): Promise<RecaptchaTestData> {
     const { url } = params;
@@ -66,14 +69,109 @@ export class RecaptchaTestScraper extends BaseScraper<RecaptchaTestData> {
     // If reCAPTCHA is present, attempt to solve it
     if (hadRecaptcha) {
       console.log('Attempting to solve reCAPTCHA...');
+
+      // Give more time for extension to load and solve
+      console.log('Waiting 5 seconds for extension to initialize...');
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
       solved = await this.solveRecaptcha();
 
       if (solved) {
         console.log('✅ reCAPTCHA solved successfully!');
         // Wait a bit after solving
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 5000));
       } else {
-        console.log('❌ Failed to solve reCAPTCHA');
+        console.log('❌ Failed to solve reCAPTCHA automatically');
+        console.log('💡 TIP: You have 60 seconds to solve manually...');
+
+        // Wait 60 seconds for manual solving
+        await new Promise((resolve) => setTimeout(resolve, 60000));
+
+        // Check if solved manually
+        const manualSolved = await this.page.evaluate(() => {
+          const response = (window as any).grecaptcha?.getResponse();
+          return response && response.length > 0;
+        });
+
+        if (manualSolved) {
+          console.log('✅ reCAPTCHA solved manually!');
+          solved = true;
+        } else {
+          console.log('❌ reCAPTCHA still not solved');
+        }
+      }
+
+      // If solved, try to submit the form
+      if (solved) {
+        console.log('Attempting to submit form...');
+
+        // Fill any required form fields first
+        const formFilled = await this.page.evaluate(() => {
+          // Find any text inputs that might be required
+          const inputs = document.querySelectorAll('input[type="text"], input[type="email"], textarea');
+          inputs.forEach((input: any) => {
+            if (input.value === '' || input.value.trim() === '') {
+              input.value = 'Test User';
+            }
+          });
+          return inputs.length > 0;
+        });
+
+        if (formFilled) {
+          console.log('✅ Form fields filled');
+        }
+
+        // Try to find and click submit button
+        const submitted = await this.page.evaluate(() => {
+          // Try multiple selectors for submit button
+          const submitSelectors = [
+            'button[type="submit"]',
+            'input[type="submit"]',
+            'button:contains("Submit")',
+            '#recaptcha-demo-submit',
+            'button',
+          ];
+
+          for (const selector of submitSelectors) {
+            const button = document.querySelector(selector) as HTMLElement;
+            if (button) {
+              button.click();
+              return true;
+            }
+          }
+          return false;
+        });
+
+        if (submitted) {
+          console.log('✅ Submit button clicked!');
+
+          // Wait for response/success message
+          console.log('Waiting for response...');
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+
+          // Check for success message or response
+          const hasResponse = await this.page.evaluate(() => {
+            const body = document.body.textContent || '';
+            return body.includes('success') ||
+                   body.includes('Success') ||
+                   body.includes('thank you') ||
+                   body.includes('Thank you') ||
+                   document.querySelector('.success') !== null ||
+                   document.querySelector('.alert-success') !== null;
+          });
+
+          if (hasResponse) {
+            console.log('✅ Form submitted successfully! Response received.');
+          } else {
+            console.log('⚠️  Form submitted but no clear success message found.');
+          }
+
+          // Wait 15 more seconds to view the result
+          console.log('💡 Keeping browser open for 15 seconds to view result...');
+          await new Promise((resolve) => setTimeout(resolve, 15000));
+        } else {
+          console.log('⚠️  Could not find submit button');
+        }
       }
     }
 
@@ -102,11 +200,13 @@ export class GoogleRecaptchaDemoScraper extends BaseScraper<any> {
 
     // Merge config with extension defaults
     const configWithExtension: ScraperConfig = {
+      timeout: 180000, // 3 minutes for manual solving + submit + view result
       ...config,
       recaptcha: {
         enabled: true,
         provider: config.recaptcha?.provider || 'extension',
         extensionPath: config.recaptcha?.extensionPath || extensionPath,
+        timeout: 180000, // 3 minutes for solving
         ...config.recaptcha,
       },
     };
@@ -114,6 +214,7 @@ export class GoogleRecaptchaDemoScraper extends BaseScraper<any> {
     super(configWithExtension);
 
     console.log('[GoogleRecaptchaDemoScraper] Chrome extension path:', extensionPath);
+    console.log('[GoogleRecaptchaDemoScraper] Timeout set to:', configWithExtension.timeout, 'ms (3 minutes)');
   }
   protected async scrape(params: ScraperParams): Promise<any> {
     if (!this.page) {
@@ -160,12 +261,110 @@ export class GoogleRecaptchaDemoScraper extends BaseScraper<any> {
     let solved = false;
     if (this.recaptchaSolver || this.recaptchaExtension) {
       console.log('[GoogleRecaptchaDemoScraper] Attempting to solve reCAPTCHA...');
+
+      // Give more time for extension to load and solve
+      console.log('[GoogleRecaptchaDemoScraper] Waiting 5 seconds for extension to initialize...');
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
       solved = await this.solveRecaptcha();
 
       if (!solved) {
         console.log('[GoogleRecaptchaDemoScraper] ⚠️  reCAPTCHA not solved (manual intervention required or solver failed)');
+        console.log('[GoogleRecaptchaDemoScraper] 💡 TIP: You have 60 seconds to solve manually...');
+
+        // Wait 60 seconds for manual solving
+        await new Promise((resolve) => setTimeout(resolve, 60000));
+
+        // Check if solved manually
+        const manualSolved = await this.page.evaluate(() => {
+          const response = (window as any).grecaptcha?.getResponse();
+          return response && response.length > 0;
+        });
+
+        if (manualSolved) {
+          console.log('[GoogleRecaptchaDemoScraper] ✅ reCAPTCHA solved manually!');
+          solved = true;
+        } else {
+          console.log('[GoogleRecaptchaDemoScraper] ❌ reCAPTCHA still not solved');
+        }
       } else {
         console.log('[GoogleRecaptchaDemoScraper] ✅ reCAPTCHA solved!');
+        // Wait a bit after solving to see result
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
+
+      // If solved, try to submit the form
+      if (solved) {
+        console.log('[GoogleRecaptchaDemoScraper] Attempting to submit form...');
+
+        // Fill any required form fields first
+        const formFilled = await this.page.evaluate(() => {
+          // Find any text inputs that might be required
+          const inputs = document.querySelectorAll('input[type="text"], input[type="email"], textarea');
+          inputs.forEach((input: any) => {
+            if (input.value === '' || input.value.trim() === '') {
+              input.value = 'Test User';
+            }
+          });
+          return inputs.length > 0;
+        });
+
+        if (formFilled) {
+          console.log('[GoogleRecaptchaDemoScraper] ✅ Form fields filled');
+        }
+
+        // Try to find and click submit button
+        const submitted = await this.page.evaluate(() => {
+          // Try multiple selectors for submit button
+          const submitSelectors = [
+            'button[type="submit"]',
+            'input[type="submit"]',
+            'button:contains("Submit")',
+            '#recaptcha-demo-submit',
+            'button',
+          ];
+
+          for (const selector of submitSelectors) {
+            const button = document.querySelector(selector) as HTMLElement;
+            if (button) {
+              button.click();
+              return true;
+            }
+          }
+          return false;
+        });
+
+        if (submitted) {
+          console.log('[GoogleRecaptchaDemoScraper] ✅ Submit button clicked!');
+
+          // Wait for response/success message
+          console.log('[GoogleRecaptchaDemoScraper] Waiting for response...');
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+
+          // Check for success message or response
+          const hasResponse = await this.page.evaluate(() => {
+            const body = document.body.textContent || '';
+            return body.includes('success') ||
+                   body.includes('Success') ||
+                   body.includes('Verification Success') ||
+                   body.includes('thank you') ||
+                   body.includes('Thank you') ||
+                   document.querySelector('.success') !== null ||
+                   document.querySelector('.alert-success') !== null;
+          });
+
+          if (hasResponse) {
+            console.log('[GoogleRecaptchaDemoScraper] ✅ Form submitted successfully! Response received.');
+          } else {
+            console.log('[GoogleRecaptchaDemoScraper] ⚠️  Form submitted but no clear success message found.');
+          }
+
+          // Wait 15 more seconds to view the result
+          console.log('[GoogleRecaptchaDemoScraper] 💡 Keeping browser open for 15 seconds to view result...');
+          await new Promise((resolve) => setTimeout(resolve, 15000));
+        } else {
+          console.log('[GoogleRecaptchaDemoScraper] ⚠️  Could not find submit button');
+        }
       }
     } else {
       console.log('[GoogleRecaptchaDemoScraper] ℹ️  No reCAPTCHA solver configured - skipping solve');

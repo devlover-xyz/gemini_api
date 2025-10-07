@@ -26,11 +26,13 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
 
     // Merge config with extension defaults
     const configWithExtension: ScraperConfig = {
+      timeout: 120000, // 2 minutes for manual solving
       ...config,
       recaptcha: {
         enabled: true,
         provider: config.recaptcha?.provider || 'extension',
         extensionPath: config.recaptcha?.extensionPath || extensionPath,
+        timeout: 120000, // 2 minutes for solving
         ...config.recaptcha,
       },
     };
@@ -38,6 +40,7 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
     super(configWithExtension);
 
     console.log('[GoogleSearchScraper] Chrome extension path:', extensionPath);
+    console.log('[GoogleSearchScraper] Timeout set to:', configWithExtension.timeout, 'ms');
   }
   protected async scrape(params: ScraperParams): Promise<GoogleSearchData> {
     const { query, limit = 10 } = params;
@@ -139,6 +142,11 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
         if (this.recaptchaSolver || this.recaptchaExtension) {
           console.log('[GoogleSearchScraper] Attempting to solve reCAPTCHA...');
           console.log('[GoogleSearchScraper] 💡 TIP: If using manual solver, you can now click the reCAPTCHA checkbox');
+
+          // Give more time for extension to load and solve
+          console.log('[GoogleSearchScraper] Waiting 5 seconds for extension to initialize...');
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+
           const solved = await this.solveRecaptcha();
 
           if (solved) {
@@ -161,9 +169,21 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
               });
             }
           } else {
-            console.log('[GoogleSearchScraper] ❌ Failed to solve reCAPTCHA');
+            console.log('[GoogleSearchScraper] ❌ Failed to solve reCAPTCHA automatically');
+            console.log('[GoogleSearchScraper] 💡 TIP: You have 60 seconds to solve manually...');
             await this.takeScreenshot('./screenshots/google-search-recaptcha-failed.png');
-            throw new Error('Google blocked with reCAPTCHA. Please configure a reCAPTCHA solver or try again later.');
+
+            // Wait 60 seconds for manual solving
+            await new Promise((resolve) => setTimeout(resolve, 60000));
+
+            // Check if solved manually
+            const currentUrl = this.page.url();
+            if (currentUrl.includes('/search?q=')) {
+              console.log('[GoogleSearchScraper] ✅ reCAPTCHA solved manually! Redirected to search results');
+            } else {
+              console.log('[GoogleSearchScraper] ❌ reCAPTCHA still not solved');
+              throw new Error('Google blocked with reCAPTCHA. Please configure a reCAPTCHA solver or try again later.');
+            }
           }
         } else {
           console.log('[GoogleSearchScraper] ❌ No reCAPTCHA solver configured');

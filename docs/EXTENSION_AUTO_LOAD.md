@@ -320,3 +320,5 @@ typeof window.__recaptchaSolver !== 'undefined'
 ✅ **GoogleRecaptchaDemoScraper** now auto-loads Chrome extension from `extensions/solver`
 ✅ Extension timeout increased to 15 seconds for better reliability
 ✅ Test file created to verify extension loading
+✅ **Scraper timeout increased to 120 seconds (2 minutes)** for manual solving
+✅ **60-second wait time** after auto-solve fails for manual intervention
