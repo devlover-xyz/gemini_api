@@ -26,7 +26,7 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
 
     // Merge config with extension defaults
     const configWithExtension: ScraperConfig = {
-      timeout: 120000, // 2 minutes for manual solving
+      timeout: 240000, // 4 minutes for captcha solving + navigation + scraping
       ...config,
       recaptcha: {
         enabled: true,
@@ -98,44 +98,60 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
         console.log('[GoogleSearchScraper] Page stabilize timeout, proceeding with check...');
       }
 
-      // Additional wait for reCAPTCHA if detected early
+      // Check for reCAPTCHA presence
       const hasEarlyRecaptcha = await this.page.evaluate(() => {
         return !!document.querySelector('iframe[src*="recaptcha"]') ||
                document.body.textContent?.includes('unusual traffic') ||
                document.body.textContent?.includes('not a robot');
       });
 
-      if (hasEarlyRecaptcha) {
-        console.log('[GoogleSearchScraper] reCAPTCHA detected early, waiting 5s more for full load...');
-        await new Promise((resolve) => setTimeout(resolve, 10000));
-      }
+      let isRecaptchaPage = hasEarlyRecaptcha;
 
-      // Now check for reCAPTCHA
-      const pageContent = await this.page.content();
-      const isRecaptchaPage = pageContent.includes('unusual traffic') ||
-                               pageContent.includes('not a robot') ||
-                               await this.page.evaluate(() => {
-                                 return !!document.querySelector('iframe[src*="recaptcha"]');
-                               });
+      if (hasEarlyRecaptcha) {
+        console.log('[GoogleSearchScraper] reCAPTCHA detected early, waiting 10s for full load...');
+        await new Promise((resolve) => setTimeout(resolve, 10000));
+
+        // Check again after wait to confirm
+        const pageContent = await this.page.content();
+        const stillHasRecaptcha = pageContent.includes('unusual traffic') ||
+                                   pageContent.includes('not a robot') ||
+                                   await this.page.evaluate(() => {
+                                     return !!document.querySelector('iframe[src*="recaptcha"]');
+                                   });
+
+        // If early detection was true, treat as reCAPTCHA page even if it's no longer visible
+        // (extension might have already started solving)
+        isRecaptchaPage = true;
+        console.log('[GoogleSearchScraper] reCAPTCHA still present after wait:', stillHasRecaptcha);
+      }
 
       if (isRecaptchaPage) {
         console.log('[GoogleSearchScraper] ⚠️  Google reCAPTCHA challenge detected');
         await this.takeScreenshot('./screenshots/google-search-recaptcha-detected.png');
 
-        // Wait additional time for reCAPTCHA iframe to be fully interactive
-        console.log('[GoogleSearchScraper] Waiting for reCAPTCHA iframe to be ready...');
-        try {
-          await this.page.waitForSelector('iframe[src*="recaptcha"]', {
-            timeout: 10000,
-            visible: true
-          });
-          console.log('[GoogleSearchScraper] ✅ reCAPTCHA iframe is ready');
+        // Check if iframe is still present
+        const iframePresent = await this.page.evaluate(() => {
+          return !!document.querySelector('iframe[src*="recaptcha"]');
+        });
 
-          // Give extra time for iframe to become interactive (important for manual solving)
-          console.log('[GoogleSearchScraper] Waiting for iframe to become fully interactive (3s)...');
-          await new Promise((resolve) => setTimeout(resolve, 3000));
-        } catch (error) {
-          console.log('[GoogleSearchScraper] ⚠️  reCAPTCHA iframe wait timeout, continuing anyway...');
+        if (iframePresent) {
+          // Wait additional time for reCAPTCHA iframe to be fully interactive
+          console.log('[GoogleSearchScraper] Waiting for reCAPTCHA iframe to be ready...');
+          try {
+            await this.page.waitForSelector('iframe[src*="recaptcha"]', {
+              timeout: 10000,
+              visible: true
+            });
+            console.log('[GoogleSearchScraper] ✅ reCAPTCHA iframe is ready');
+
+            // Give extra time for iframe to become interactive (important for manual solving)
+            console.log('[GoogleSearchScraper] Waiting for iframe to become fully interactive (3s)...');
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+          } catch (error) {
+            console.log('[GoogleSearchScraper] ⚠️  reCAPTCHA iframe wait timeout, continuing anyway...');
+          }
+        } else {
+          console.log('[GoogleSearchScraper] reCAPTCHA iframe no longer present, extension may have already solved it');
         }
 
         // Wait for extension to solve reCAPTCHA
@@ -143,15 +159,36 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
           console.log('[GoogleSearchScraper] 🔄 Waiting for extension to solve reCAPTCHA...');
           console.log('[GoogleSearchScraper] 💡 Extension will automatically check the captcha box');
 
-          // Wait for captcha to be solved by extension
-          const solved = await this.waitForCaptchaSolved();
+          // Check if already on search results (extension might have already solved)
+          const currentUrl = this.page.url();
+          const alreadySolved = currentUrl.includes('/search?q=');
+
+          let solved = alreadySolved;
+
+          if (alreadySolved) {
+            console.log('[GoogleSearchScraper] ✅ Already on search results page, reCAPTCHA was solved automatically');
+          } else {
+            // Wait for captcha to be solved by extension
+            solved = await this.waitForCaptchaSolved();
+          }
 
           if (solved) {
             console.log('[GoogleSearchScraper] ✅ reCAPTCHA solved successfully!');
             await this.takeScreenshot('./screenshots/google-search-recaptcha-solved.png');
 
-            // Wait briefly for page to redirect to search results
-            console.log('[GoogleSearchScraper] Waiting 3 seconds for redirect...');
+            // Wait for page to redirect to search results
+            console.log('[GoogleSearchScraper] Waiting for redirect after captcha solve...');
+            try {
+              await this.page.waitForNavigation({
+                timeout: 10000,
+                waitUntil: 'networkidle2'
+              });
+              console.log('[GoogleSearchScraper] Navigation detected after captcha solve');
+            } catch (navError) {
+              console.log('[GoogleSearchScraper] No navigation detected, checking URL...');
+            }
+
+            // Additional wait for page to stabilize
             await new Promise((resolve) => setTimeout(resolve, 3000));
 
             // Check current URL
@@ -162,9 +199,13 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
             if (!currentUrl.includes('/search?q=')) {
               console.log('[GoogleSearchScraper] Re-navigating to search results...');
               await this.page.goto(searchUrl, {
-                waitUntil: 'domcontentloaded',
+                waitUntil: 'networkidle2',
                 timeout: 20000
               });
+
+              // Wait for results to load after navigation
+              console.log('[GoogleSearchScraper] Waiting for search results to load...');
+              await new Promise((resolve) => setTimeout(resolve, 5000));
             }
           } else {
             console.log('[GoogleSearchScraper] ❌ Failed to solve reCAPTCHA within timeout');
@@ -183,9 +224,10 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
       const selectors = ['#search', '#rso', '.g'];
       let selectorFound = false;
 
+      console.log('[GoogleSearchScraper] Waiting for search results to appear...');
       for (const selector of selectors) {
         try {
-          await this.page.waitForSelector(selector, { timeout: 5000 });
+          await this.page.waitForSelector(selector, { timeout: 15000 });
           selectorFound = true;
           console.log(`[GoogleSearchScraper] Found search results with selector: ${selector}`);
           break;
@@ -212,7 +254,23 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
         throw new Error('Search results container not found. This may be due to Google blocking, rate limiting, or changed selectors. Screenshot saved to: screenshots/google-search-error.png');
       }
 
+      // Take screenshot before extracting results (for debugging)
+      await this.takeScreenshot('./screenshots/google-search-before-extract.png');
+
       // Extract search results with error handling
+      console.log('[GoogleSearchScraper] Extracting search results...');
+
+      // First, check what elements are available
+      const elementCounts = await this.page.evaluate(() => {
+        const counts: Record<string, number> = {};
+        const selectors = ['.g', 'div[data-sokoban-container]', '.tF2Cxc', '#search', '#rso'];
+        for (const selector of selectors) {
+          counts[selector] = document.querySelectorAll(selector).length;
+        }
+        return counts;
+      });
+      console.log('[GoogleSearchScraper] Element counts:', elementCounts);
+
       const results = await this.page.evaluate((maxResults) => {
         const searchResults: Array<{
           title: string;
@@ -223,18 +281,24 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
         // Try multiple selectors for results
         const possibleSelectors = ['.g', 'div[data-sokoban-container]', '.tF2Cxc'];
         let resultElements: NodeListOf<Element> | null = null;
+        let usedSelector = '';
 
         for (const selector of possibleSelectors) {
           const elements = document.querySelectorAll(selector);
           if (elements.length > 0) {
             resultElements = elements;
+            usedSelector = selector;
+            console.log(`Using selector: ${selector}, found ${elements.length} elements`);
             break;
           }
         }
 
         if (!resultElements) {
+          console.log('No result elements found with any selector');
           return searchResults;
         }
+
+        console.log(`Processing ${Math.min(resultElements.length, maxResults)} results`);
 
         for (let i = 0; i < Math.min(resultElements.length, maxResults); i++) {
           try {
@@ -264,19 +328,28 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
                   link: href,
                   snippet: snippetEl?.textContent?.trim() || '',
                 });
+              } else {
+                console.log(`Filtered out result ${i}: href=${href}`);
               }
+            } else {
+              console.log(`Skipped result ${i}: titleEl=${!!titleEl}, linkEl=${!!linkEl}`);
             }
           } catch (error) {
             console.error('Error extracting result:', error);
           }
         }
 
+        console.log(`Extracted ${searchResults.length} valid results`);
         return searchResults;
       }, limit);
 
+      console.log(`[GoogleSearchScraper] Total results extracted: ${results.length}`);
+
       // Validate results
       if (!results || results.length === 0) {
-        console.warn('No results found for query:', query);
+        console.warn('[GoogleSearchScraper] ⚠️  No results found for query:', query);
+        await this.takeScreenshot('./screenshots/google-search-zero-results.png');
+        console.warn('[GoogleSearchScraper] Screenshot saved to: screenshots/google-search-zero-results.png');
       }
 
       return {
@@ -302,31 +375,55 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
 
     console.log('[GoogleSearchScraper] ⏰ Waiting up to 2 minutes for extension to solve captcha...');
 
+    let noIframeCount = 0;
+
     while (Date.now() - startTime < timeout) {
       try {
+        // Check if page has already redirected to search results
+        const currentUrl = this.page!.url();
+        if (currentUrl.includes('/search?q=')) {
+          console.log('[GoogleSearchScraper] ✅ Page redirected to search results');
+          return true;
+        }
+
         const isChecked = await this.page!.evaluate(() => {
           const anchor = document.querySelector('iframe[src*="recaptcha/api2/anchor"]');
-          if (!anchor) return false;
+          if (!anchor) return { checked: false, noIframe: true };
 
           const iframe = anchor as HTMLIFrameElement;
           try {
             const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-            if (!iframeDoc) return false;
+            if (!iframeDoc) return { checked: false, noIframe: false };
 
             const checkbox = iframeDoc.querySelector('#recaptcha-anchor');
-            if (!checkbox) return false;
+            if (!checkbox) return { checked: false, noIframe: false };
 
             const ariaChecked = checkbox.getAttribute('aria-checked');
-            return ariaChecked === 'true';
+            return { checked: ariaChecked === 'true', noIframe: false };
           } catch (e) {
-            return false;
+            return { checked: false, noIframe: false };
           }
         });
 
-        if (isChecked) {
+        if (isChecked.checked) {
           const elapsed = Math.round((Date.now() - startTime) / 1000);
           console.log(`[GoogleSearchScraper] ✅ reCAPTCHA checkbox detected as checked (after ${elapsed}s)`);
           return true;
+        }
+
+        // Track consecutive no-iframe counts
+        if (isChecked.noIframe) {
+          noIframeCount++;
+          if (noIframeCount > 5) {
+            console.log('[GoogleSearchScraper] ⚠️  reCAPTCHA iframe not found after multiple checks, may have been solved already');
+            // Check if we're on search results
+            const urlCheck = this.page!.url();
+            if (urlCheck.includes('/search?q=') || urlCheck.includes('google.com/search')) {
+              return true;
+            }
+          }
+        } else {
+          noIframeCount = 0;
         }
 
         const elapsed = Math.round((Date.now() - startTime) / 1000);
