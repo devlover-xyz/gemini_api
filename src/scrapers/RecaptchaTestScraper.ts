@@ -97,21 +97,19 @@ export class RecaptchaTestScraper extends BaseScraper<RecaptchaTestData> {
     let solved = false;
     let scrapedResponse: any = undefined;
 
-    // If reCAPTCHA is present, attempt to solve it
+    // If reCAPTCHA is present, wait for extension to solve it
     if (hadRecaptcha) {
-      console.log('Attempting to solve reCAPTCHA...');
+      console.log('🔄 Waiting for extension to solve reCAPTCHA...');
+      console.log('💡 Extension will automatically check the captcha box');
 
-      // Give more time for extension to load and solve
-      console.log('Waiting 5 seconds for extension to initialize...');
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
-      solved = await this.solveRecaptcha();
+      // Wait for captcha to be solved by extension
+      solved = await this.waitForCaptchaSolved();
 
       if (solved) {
         console.log('✅ reCAPTCHA solved successfully!');
         // Wait briefly after solving to ensure it's fully processed
-        console.log('Waiting 3 seconds for reCAPTCHA to be fully processed...');
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        console.log('Waiting 2 seconds for reCAPTCHA to be fully processed...');
+        await new Promise((resolve) => setTimeout(resolve, 2000));
 
         // Check if reCAPTCHA reloaded (challenge appeared)
         const reloaded = await this.page.evaluate(() => {
@@ -150,39 +148,6 @@ export class RecaptchaTestScraper extends BaseScraper<RecaptchaTestData> {
             console.log('❌ Challenge not solved within 90 seconds');
             solved = false;
           }
-        }
-      } else {
-        console.log('❌ Failed to solve reCAPTCHA automatically');
-        console.log('💡 TIP: You have 90 seconds to solve manually...');
-
-        // Wait up to 90 seconds for manual solving
-        let manualSolved = false;
-        for (let i = 0; i < 18; i++) { // 18 * 5s = 90s
-          await new Promise((resolve) => setTimeout(resolve, 5000));
-
-          const checkSolved = await this.page.evaluate(() => {
-            const response = (window as any).grecaptcha?.getResponse();
-            return response && response.length > 0;
-          });
-
-          if (checkSolved) {
-            console.log(`✅ reCAPTCHA solved manually! (after ${(i + 1) * 5} seconds)`);
-            manualSolved = true;
-            solved = true;
-            break;
-          }
-
-          if ((i + 1) % 6 === 0) { // Every 30 seconds
-            console.log(`Still waiting for manual solve... (${(i + 1) * 5}s elapsed)`);
-          }
-        }
-
-        if (manualSolved) {
-          // Wait after manual solve
-          console.log('Waiting 5 seconds after manual solve...');
-          await new Promise((resolve) => setTimeout(resolve, 5000));
-        } else {
-          console.log('❌ reCAPTCHA still not solved after 90 seconds');
         }
       }
     }
@@ -322,6 +287,62 @@ export class RecaptchaTestScraper extends BaseScraper<RecaptchaTestData> {
 
     return result;
   }
+
+  /**
+   * Wait for captcha to be solved by extension
+   * Polls the recaptcha anchor checkbox until it's checked
+   */
+  private async waitForCaptchaSolved(): Promise<boolean> {
+    const timeout = 360000; // 6 minutes (same as overall timeout)
+    const startTime = Date.now();
+
+    console.log('⏰ Waiting up to 6 minutes for extension to solve captcha...');
+
+    while (Date.now() - startTime < timeout) {
+      try {
+        // Check if aria-checked is true
+        const isChecked = await this.page.evaluate(() => {
+          const anchor = document.querySelector('iframe[src*="recaptcha/api2/anchor"]');
+          if (!anchor) return false;
+
+          const iframe = anchor as HTMLIFrameElement;
+          try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+            if (!iframeDoc) return false;
+
+            const checkbox = iframeDoc.querySelector('#recaptcha-anchor');
+            if (!checkbox) return false;
+
+            const ariaChecked = checkbox.getAttribute('aria-checked');
+            return ariaChecked === 'true';
+          } catch (e) {
+            return false;
+          }
+        });
+
+        if (isChecked) {
+          const elapsed = Math.round((Date.now() - startTime) / 1000);
+          console.log(`✅ reCAPTCHA checkbox detected as checked (after ${elapsed}s)`);
+          return true;
+        }
+
+        // Log progress every 10 seconds
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+        if (elapsed > 0 && elapsed % 10 === 0) {
+          console.log(`🔍 Still waiting for captcha... (${elapsed}s elapsed)`);
+        }
+
+        // Wait 500ms before next check
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error) {
+        // Continue polling even if there's an error
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    console.log('⏰ Timeout waiting for captcha to be solved');
+    return false;
+  }
 }
 
 /**
@@ -398,19 +419,17 @@ export class GoogleRecaptchaDemoScraper extends BaseScraper<any> {
     let scrapedResponse: any = undefined;
 
     if (this.recaptchaSolver || this.recaptchaExtension) {
-      console.log('[GoogleRecaptchaDemoScraper] Attempting to solve reCAPTCHA...');
+      console.log('[GoogleRecaptchaDemoScraper] 🔄 Waiting for extension to solve reCAPTCHA...');
+      console.log('[GoogleRecaptchaDemoScraper] 💡 Extension will automatically check the captcha box');
 
-      // Give more time for extension to load and solve
-      console.log('[GoogleRecaptchaDemoScraper] Waiting 5 seconds for extension to initialize...');
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
-      solved = await this.solveRecaptcha();
+      // Wait for captcha to be solved by extension
+      solved = await this.waitForCaptchaSolvedDemo();
 
       if (solved) {
         console.log('[GoogleRecaptchaDemoScraper] ✅ reCAPTCHA solved!');
         // Wait briefly after solving to ensure it's fully processed
-        console.log('[GoogleRecaptchaDemoScraper] Waiting 3 seconds for reCAPTCHA to be fully processed...');
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        console.log('[GoogleRecaptchaDemoScraper] Waiting 2 seconds for reCAPTCHA to be fully processed...');
+        await new Promise((resolve) => setTimeout(resolve, 2000));
 
         // Check if reCAPTCHA reloaded (challenge appeared)
         const reloaded = await this.page.evaluate(() => {
@@ -449,39 +468,6 @@ export class GoogleRecaptchaDemoScraper extends BaseScraper<any> {
             console.log('[GoogleRecaptchaDemoScraper] ❌ Challenge not solved within 90 seconds');
             solved = false;
           }
-        }
-      } else {
-        console.log('[GoogleRecaptchaDemoScraper] ⚠️  reCAPTCHA not solved (manual intervention required or solver failed)');
-        console.log('[GoogleRecaptchaDemoScraper] 💡 TIP: You have 90 seconds to solve manually...');
-
-        // Wait up to 90 seconds for manual solving
-        let manualSolved = false;
-        for (let i = 0; i < 18; i++) { // 18 * 5s = 90s
-          await new Promise((resolve) => setTimeout(resolve, 5000));
-
-          const checkSolved = await this.page.evaluate(() => {
-            const response = (window as any).grecaptcha?.getResponse();
-            return response && response.length > 0;
-          });
-
-          if (checkSolved) {
-            console.log(`[GoogleRecaptchaDemoScraper] ✅ reCAPTCHA solved manually! (after ${(i + 1) * 5} seconds)`);
-            manualSolved = true;
-            solved = true;
-            break;
-          }
-
-          if ((i + 1) % 6 === 0) { // Every 30 seconds
-            console.log(`[GoogleRecaptchaDemoScraper] Still waiting for manual solve... (${(i + 1) * 5}s elapsed)`);
-          }
-        }
-
-        if (manualSolved) {
-          // Wait after manual solve
-          console.log('[GoogleRecaptchaDemoScraper] Waiting 5 seconds after manual solve...');
-          await new Promise((resolve) => setTimeout(resolve, 5000));
-        } else {
-          console.log('[GoogleRecaptchaDemoScraper] ❌ reCAPTCHA still not solved after 90 seconds');
         }
       }
 
@@ -617,5 +603,61 @@ export class GoogleRecaptchaDemoScraper extends BaseScraper<any> {
     }
 
     return result;
+  }
+
+  /**
+   * Wait for captcha to be solved by extension
+   * Polls the recaptcha anchor checkbox until it's checked
+   */
+  private async waitForCaptchaSolvedDemo(): Promise<boolean> {
+    const timeout = 360000; // 6 minutes (same as overall timeout)
+    const startTime = Date.now();
+
+    console.log('[GoogleRecaptchaDemoScraper] ⏰ Waiting up to 6 minutes for extension to solve captcha...');
+
+    while (Date.now() - startTime < timeout) {
+      try {
+        // Check if aria-checked is true
+        const isChecked = await this.page.evaluate(() => {
+          const anchor = document.querySelector('iframe[src*="recaptcha/api2/anchor"]');
+          if (!anchor) return false;
+
+          const iframe = anchor as HTMLIFrameElement;
+          try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+            if (!iframeDoc) return false;
+
+            const checkbox = iframeDoc.querySelector('#recaptcha-anchor');
+            if (!checkbox) return false;
+
+            const ariaChecked = checkbox.getAttribute('aria-checked');
+            return ariaChecked === 'true';
+          } catch (e) {
+            return false;
+          }
+        });
+
+        if (isChecked) {
+          const elapsed = Math.round((Date.now() - startTime) / 1000);
+          console.log(`[GoogleRecaptchaDemoScraper] ✅ reCAPTCHA checkbox detected as checked (after ${elapsed}s)`);
+          return true;
+        }
+
+        // Log progress every 10 seconds
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+        if (elapsed > 0 && elapsed % 10 === 0) {
+          console.log(`[GoogleRecaptchaDemoScraper] 🔍 Still waiting for captcha... (${elapsed}s elapsed)`);
+        }
+
+        // Wait 500ms before next check
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error) {
+        // Continue polling even if there's an error
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    console.log('[GoogleRecaptchaDemoScraper] ⏰ Timeout waiting for captcha to be solved');
+    return false;
   }
 }

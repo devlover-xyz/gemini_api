@@ -138,23 +138,21 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
           console.log('[GoogleSearchScraper] ⚠️  reCAPTCHA iframe wait timeout, continuing anyway...');
         }
 
-        // Attempt to solve if solver is configured
+        // Wait for extension to solve reCAPTCHA
         if (this.recaptchaSolver || this.recaptchaExtension) {
-          console.log('[GoogleSearchScraper] Attempting to solve reCAPTCHA...');
-          console.log('[GoogleSearchScraper] 💡 TIP: If using manual solver, you can now click the reCAPTCHA checkbox');
+          console.log('[GoogleSearchScraper] 🔄 Waiting for extension to solve reCAPTCHA...');
+          console.log('[GoogleSearchScraper] 💡 Extension will automatically check the captcha box');
 
-          // Give more time for extension to load and solve
-          console.log('[GoogleSearchScraper] Waiting 5 seconds for extension to initialize...');
-          await new Promise((resolve) => setTimeout(resolve, 5000));
-
-          const solved = await this.solveRecaptcha();
+          // Wait for captcha to be solved by extension
+          const solved = await this.waitForCaptchaSolved();
 
           if (solved) {
             console.log('[GoogleSearchScraper] ✅ reCAPTCHA solved successfully!');
             await this.takeScreenshot('./screenshots/google-search-recaptcha-solved.png');
 
-            // Wait for page to redirect to search results
-            await new Promise((resolve) => setTimeout(resolve, 5000));
+            // Wait briefly for page to redirect to search results
+            console.log('[GoogleSearchScraper] Waiting 3 seconds for redirect...');
+            await new Promise((resolve) => setTimeout(resolve, 3000));
 
             // Check current URL
             const currentUrl = this.page.url();
@@ -169,21 +167,9 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
               });
             }
           } else {
-            console.log('[GoogleSearchScraper] ❌ Failed to solve reCAPTCHA automatically');
-            console.log('[GoogleSearchScraper] 💡 TIP: You have 60 seconds to solve manually...');
+            console.log('[GoogleSearchScraper] ❌ Failed to solve reCAPTCHA within timeout');
             await this.takeScreenshot('./screenshots/google-search-recaptcha-failed.png');
-
-            // Wait 60 seconds for manual solving
-            await new Promise((resolve) => setTimeout(resolve, 60000));
-
-            // Check if solved manually
-            const currentUrl = this.page.url();
-            if (currentUrl.includes('/search?q=')) {
-              console.log('[GoogleSearchScraper] ✅ reCAPTCHA solved manually! Redirected to search results');
-            } else {
-              console.log('[GoogleSearchScraper] ❌ reCAPTCHA still not solved');
-              throw new Error('Google blocked with reCAPTCHA. Please configure a reCAPTCHA solver or try again later.');
-            }
+            throw new Error('Google blocked with reCAPTCHA. Extension could not solve it within the timeout.');
           }
         } else {
           console.log('[GoogleSearchScraper] ❌ No reCAPTCHA solver configured');
@@ -304,5 +290,57 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
         `Failed to scrape Google search: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
+  }
+
+  /**
+   * Wait for captcha to be solved by extension
+   * Polls the recaptcha anchor checkbox until it's checked
+   */
+  private async waitForCaptchaSolved(): Promise<boolean> {
+    const timeout = 120000; // 2 minutes for Google Search
+    const startTime = Date.now();
+
+    console.log('[GoogleSearchScraper] ⏰ Waiting up to 2 minutes for extension to solve captcha...');
+
+    while (Date.now() - startTime < timeout) {
+      try {
+        const isChecked = await this.page!.evaluate(() => {
+          const anchor = document.querySelector('iframe[src*="recaptcha/api2/anchor"]');
+          if (!anchor) return false;
+
+          const iframe = anchor as HTMLIFrameElement;
+          try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+            if (!iframeDoc) return false;
+
+            const checkbox = iframeDoc.querySelector('#recaptcha-anchor');
+            if (!checkbox) return false;
+
+            const ariaChecked = checkbox.getAttribute('aria-checked');
+            return ariaChecked === 'true';
+          } catch (e) {
+            return false;
+          }
+        });
+
+        if (isChecked) {
+          const elapsed = Math.round((Date.now() - startTime) / 1000);
+          console.log(`[GoogleSearchScraper] ✅ reCAPTCHA checkbox detected as checked (after ${elapsed}s)`);
+          return true;
+        }
+
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+        if (elapsed > 0 && elapsed % 10 === 0) {
+          console.log(`[GoogleSearchScraper] 🔍 Still waiting for captcha... (${elapsed}s elapsed)`);
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    console.log('[GoogleSearchScraper] ⏰ Timeout waiting for captcha to be solved');
+    return false;
   }
 }
