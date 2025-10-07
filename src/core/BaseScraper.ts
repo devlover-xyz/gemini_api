@@ -4,7 +4,7 @@ import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import UserAgent from 'user-agents';
 import type { ScraperConfig, ScraperResult, ScraperParams } from '../types/scraper';
 import { RecaptchaSolver } from '../utils/recaptcha';
-import { RecaptchaExtension, getExtensionLaunchArgs } from '../../libs/solver/loader';
+import { RecaptchaExtension, getExtensionLaunchArgs } from '../../extensions/solver/loader';
 
 // Add stealth plugin to puppeteer-extra
 puppeteerExtra.use(StealthPlugin());
@@ -93,7 +93,15 @@ export abstract class BaseScraper<T = any> {
         ignoreHTTPSErrors: true,
       }) as Browser;
 
-      this.page = await this.browser.newPage();
+      // Use existing page instead of creating new one to avoid duplicate tabs
+      const pages = await this.browser.pages();
+      if (pages.length > 0) {
+        // Use the first existing page (default about:blank tab)
+        this.page = pages[0];
+      } else {
+        // Fallback: create new page if none exist
+        this.page = await this.browser.newPage();
+      }
 
       // Best practice: Set extra HTTP headers
       await this.page.setExtraHTTPHeaders({

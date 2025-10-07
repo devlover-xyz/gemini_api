@@ -281,7 +281,7 @@ sudo apt-get install -y \
 1. Check logs in console
 2. Check screenshots in `screenshots/` folder
 3. Review documentation:
-   - [README.md](README.md) - Main documentation
+   - [README.md](../README.md) - Main documentation
    - [STEALTH.md](STEALTH.md) - Anti-detection
    - [RECAPTCHA.md](RECAPTCHA.md) - reCAPTCHA solving
    - [SOLUTION.md](SOLUTION.md) - Technical details

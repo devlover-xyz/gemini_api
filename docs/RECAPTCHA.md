@@ -92,7 +92,7 @@ curl -X POST http://localhost:3000/api/scrape/recaptcha-test \
   }'
 ```
 
-**See:** [libs/solver/README.md](libs/solver/README.md) for detailed extension documentation.
+**See:** [libs/solver/README.md](../src/libs/solver/README.md) for detailed extension documentation.
 
 ---
 

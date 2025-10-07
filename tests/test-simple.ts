@@ -2,7 +2,7 @@
  * Simple test - just detection, no solving
  */
 
-import { GoogleRecaptchaDemoScraper } from './src/scrapers/RecaptchaTestScraper';
+import { GoogleRecaptchaDemoScraper } from '../src/scrapers/RecaptchaTestScraper';
 
 async function test() {
   console.log('🧪 Simple reCAPTCHA Detection Test\n');

@@ -2,7 +2,7 @@
  * Test Google Search with manual reCAPTCHA solver
  */
 
-import { GoogleSearchScraper } from './src/scrapers/GoogleSearchScraper';
+import { GoogleSearchScraper } from '../src/scrapers/GoogleSearchScraper';
 
 async function test() {
   console.log('🧪 Testing Google Search with manual reCAPTCHA solver\n');

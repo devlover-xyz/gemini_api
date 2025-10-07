@@ -1,9 +1,9 @@
 /**
  * Test script for reCAPTCHA detection and solving
- * Run: bun test-recaptcha.ts
+ * Run: bun tests/test-recaptcha.ts
  */
 
-import { GoogleRecaptchaDemoScraper } from './src/scrapers/RecaptchaTestScraper';
+import { GoogleRecaptchaDemoScraper } from '../src/scrapers/RecaptchaTestScraper';
 
 async function testRecaptcha() {
   console.log('🧪 Testing reCAPTCHA Detection...\n');

@@ -41,11 +41,16 @@
   }
 
   /**
-   * Get reCAPTCHA iframe
+   * Get reCAPTCHA iframe (anchor/checkbox iframe)
    */
   function getRecaptchaIframe() {
     const iframes = Array.from(document.querySelectorAll('iframe'));
+    // Prioritize anchor iframe (checkbox)
     return iframes.find(iframe =>
+      iframe.src.includes('recaptcha/api2/anchor') ||
+      iframe.src.includes('recaptcha/enterprise/anchor') ||
+      iframe.title?.toLowerCase().includes('recaptcha')
+    ) || iframes.find(iframe =>
       iframe.src.includes('recaptcha') ||
       iframe.src.includes('hcaptcha')
     );
@@ -76,21 +81,47 @@
       }
 
       try {
+        // Try to access iframe content first
+        try {
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (iframeDoc) {
+            // Find and click the actual checkbox element inside iframe
+            const checkbox = iframeDoc.querySelector('.recaptcha-checkbox-border, #recaptcha-anchor, .recaptcha-checkbox');
+            if (checkbox) {
+              log('Found checkbox element inside iframe, clicking directly...');
+              checkbox.click();
+              log('Clicked reCAPTCHA checkbox (direct click)');
+              setTimeout(() => resolve(true), 2000);
+              return;
+            }
+          }
+        } catch (e) {
+          // Cross-origin restriction, fall back to coordinate clicking
+          log('Cannot access iframe content (cross-origin), using coordinate click...');
+        }
+
+        // Fallback: Click by coordinates on the iframe
         const rect = iframe.getBoundingClientRect();
         const x = rect.left + rect.width / 2;
         const y = rect.top + rect.height / 2;
 
-        // Simulate human-like click
-        const clickEvent = new MouseEvent('click', {
-          view: window,
-          bubbles: true,
-          cancelable: true,
-          clientX: x,
-          clientY: y
+        log(`Clicking at coordinates (${x}, ${y})`);
+
+        // Create and dispatch multiple mouse events for more realistic interaction
+        const events = ['mousedown', 'mouseup', 'click'];
+        events.forEach(eventType => {
+          const mouseEvent = new MouseEvent(eventType, {
+            view: window,
+            bubbles: true,
+            cancelable: true,
+            clientX: x,
+            clientY: y,
+            button: 0
+          });
+          iframe.dispatchEvent(mouseEvent);
         });
 
-        iframe.dispatchEvent(clickEvent);
-        log('Clicked reCAPTCHA checkbox');
+        log('Clicked reCAPTCHA checkbox (coordinate click)');
 
         // Wait for challenge to appear
         setTimeout(() => resolve(true), 2000);

@@ -264,10 +264,18 @@ export class RecaptchaSolver {
     console.log('⚠️  MANUAL reCAPTCHA SOLVING REQUIRED');
     console.log('═══════════════════════════════════════════════════');
     console.log('📌 The browser window is now open');
-    console.log('📌 Please click the reCAPTCHA checkbox');
+    console.log('📌 Attempting to auto-click the reCAPTCHA checkbox...');
     console.log('📌 Complete any image challenges if they appear');
     console.log(`📌 You have ${this.config.timeout! / 1000} seconds to complete`);
     console.log('═══════════════════════════════════════════════════\n');
+
+    // Try to auto-click the checkbox first
+    try {
+      await this.clickRecaptchaCheckbox(page);
+      console.log('✅ Checkbox clicked automatically\n');
+    } catch (error) {
+      console.log('⚠️  Could not auto-click checkbox, please click manually\n');
+    }
 
     const startTime = Date.now();
     let lastCheck = 0;
@@ -278,6 +286,17 @@ export class RecaptchaSolver {
 
       if (!hasCaptcha) {
         console.log('✅ Captcha solved manually!\n');
+        return true;
+      }
+
+      // Check if reCAPTCHA is solved
+      const isSolved = await page.evaluate(() => {
+        const textarea = document.querySelector('textarea[name="g-recaptcha-response"]') as HTMLTextAreaElement;
+        return textarea && textarea.value && textarea.value.length > 0;
+      });
+
+      if (isSolved) {
+        console.log('✅ reCAPTCHA solved!\n');
         return true;
       }
 
@@ -295,6 +314,44 @@ export class RecaptchaSolver {
 
     console.log('\n❌ Manual captcha solving timeout - time limit exceeded\n');
     throw new Error('Manual captcha solving timeout');
+  }
+
+  /**
+   * Auto-click reCAPTCHA checkbox
+   */
+  private async clickRecaptchaCheckbox(page: Page): Promise<void> {
+    console.log('Searching for reCAPTCHA checkbox iframe...');
+
+    // Wait for iframe to be visible
+    await page.waitForSelector('iframe[src*="recaptcha/api2/anchor"], iframe[src*="recaptcha/enterprise/anchor"], iframe[title*="reCAPTCHA"]', {
+      timeout: 10000,
+      visible: true
+    });
+
+    // Get all frames
+    const frames = page.frames();
+    console.log(`Found ${frames.length} frames`);
+
+    // Find the anchor/checkbox frame
+    const recaptchaFrame = frames.find(frame => {
+      const url = frame.url();
+      return url.includes('recaptcha/api2/anchor') || url.includes('recaptcha/enterprise/anchor');
+    });
+
+    if (!recaptchaFrame) {
+      throw new Error('reCAPTCHA checkbox frame not found');
+    }
+
+    console.log('Found reCAPTCHA checkbox frame, clicking...');
+
+    // Wait for checkbox to be available and click it
+    await recaptchaFrame.waitForSelector('#recaptcha-anchor', { timeout: 5000 });
+    await recaptchaFrame.click('#recaptcha-anchor');
+
+    console.log('✅ Checkbox clicked!');
+
+    // Wait a bit for the challenge to appear (if needed)
+    await new Promise(resolve => setTimeout(resolve, 2000));
   }
 
   /**

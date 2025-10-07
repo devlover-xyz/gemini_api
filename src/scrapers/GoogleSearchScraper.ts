@@ -83,7 +83,7 @@ export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
 
       if (hasEarlyRecaptcha) {
         console.log('[GoogleSearchScraper] reCAPTCHA detected early, waiting 5s more for full load...');
-        await new Promise((resolve) => setTimeout(resolve, 5000));
+        await new Promise((resolve) => setTimeout(resolve, 10000));
       }
 
       // Now check for reCAPTCHA

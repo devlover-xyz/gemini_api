@@ -2,7 +2,7 @@
  * Test random User-Agent
  */
 
-import { ExampleScraper } from './src/scrapers/ExampleScraper';
+import { ExampleScraper } from '../src/scrapers/ExampleScraper';
 
 async function test() {
   console.log('🧪 Testing Random User-Agent\n');

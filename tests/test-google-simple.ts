@@ -3,7 +3,7 @@
  * This is just to test the basic functionality
  */
 
-import { GoogleSearchScraper } from './src/scrapers/GoogleSearchScraper';
+import { GoogleSearchScraper } from '../src/scrapers/GoogleSearchScraper';
 
 async function test() {
   console.log('🧪 Testing Google Search (basic test)\n');
