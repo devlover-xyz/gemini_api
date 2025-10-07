@@ -16,6 +16,7 @@ Complete documentation for the Scraping API project.
 - **[RECAPTCHA.md](RECAPTCHA.md)** - reCAPTCHA solving guide (manual, 2captcha, anti-captcha, extension)
 - **[STEALTH.md](STEALTH.md)** - Stealth mode and anti-detection techniques
 - **[CHROME_EXTENSIONS.md](CHROME_EXTENSIONS.md)** - Chrome extensions support (complete guide)
+- **[EXTENSION_AUTO_LOAD.md](EXTENSION_AUTO_LOAD.md)** - Auto-loading Chrome extension for Google Search & reCAPTCHA scrapers
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Deployment guide (Docker, production, etc.)
 
 ### Technical Documentation
@@ -106,4 +107,4 @@ When adding new documentation:
 ---
 
 **Last Updated:** 2025-10-07
-**Total Docs:** 16 files
+**Total Docs:** 17 files

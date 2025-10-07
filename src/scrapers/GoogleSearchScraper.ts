@@ -1,5 +1,6 @@
 import { BaseScraper } from '../core/BaseScraper';
-import type { ScraperParams } from '../types/scraper';
+import type { ScraperParams, ScraperConfig } from '../types/scraper';
+import path from 'path';
 
 interface SearchResult {
   title: string;
@@ -16,8 +17,28 @@ interface GoogleSearchData {
 /**
  * Google Search Scraper - Production Ready
  * Optimized for reliability, efficiency, and resource management
+ * Automatically loads Chrome extension from extensions/solver
  */
 export class GoogleSearchScraper extends BaseScraper<GoogleSearchData> {
+  constructor(config: ScraperConfig = {}) {
+    // Auto-enable extension if recaptcha config doesn't exist or provider not set
+    const extensionPath = path.resolve(process.cwd(), 'extensions/solver');
+
+    // Merge config with extension defaults
+    const configWithExtension: ScraperConfig = {
+      ...config,
+      recaptcha: {
+        enabled: true,
+        provider: config.recaptcha?.provider || 'extension',
+        extensionPath: config.recaptcha?.extensionPath || extensionPath,
+        ...config.recaptcha,
+      },
+    };
+
+    super(configWithExtension);
+
+    console.log('[GoogleSearchScraper] Chrome extension path:', extensionPath);
+  }
   protected async scrape(params: ScraperParams): Promise<GoogleSearchData> {
     const { query, limit = 10 } = params;
 

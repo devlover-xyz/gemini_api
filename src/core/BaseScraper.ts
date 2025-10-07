@@ -40,6 +40,7 @@ export abstract class BaseScraper<T = any> {
           enabled: true,
           autoSolve: false, // Manual control
           debug: true,
+          extensionPath: this.config.recaptcha.extensionPath,
         });
       } else {
         // Use API-based solver

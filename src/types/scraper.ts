@@ -13,6 +13,7 @@ export interface ScraperConfig {
     provider?: '2captcha' | 'anti-captcha' | 'manual' | 'extension';
     apiKey?: string;
     timeout?: number;
+    extensionPath?: string;
   };
 }
 

@@ -14,6 +14,7 @@ export interface ExtensionConfig {
   enabled?: boolean;
   autoSolve?: boolean;
   debug?: boolean;
+  extensionPath?: string;
 }
 
 /**
@@ -60,7 +61,7 @@ export async function configureExtension(
 /**
  * Wait for extension to load
  */
-export async function waitForExtension(page: Page, timeout = 5000): Promise<boolean> {
+export async function waitForExtension(page: Page, timeout = 15000): Promise<boolean> {
   try {
     await page.waitForFunction(
       () => typeof (window as any).__recaptchaSolver !== 'undefined',
@@ -170,6 +171,21 @@ export class RecaptchaExtension {
     if (!this.config.enabled) {
       return [];
     }
+
+    // Use custom path if provided, otherwise use default
+    if (this.config.extensionPath) {
+      const absolutePath = path.isAbsolute(this.config.extensionPath)
+        ? this.config.extensionPath
+        : path.resolve(process.cwd(), this.config.extensionPath);
+
+      console.log('[RecaptchaExtension] Using extension from:', absolutePath);
+
+      return [
+        `--disable-extensions-except=${absolutePath}`,
+        `--load-extension=${absolutePath}`,
+      ];
+    }
+
     return getExtensionLaunchArgs();
   }
 
@@ -182,6 +198,14 @@ export class RecaptchaExtension {
     }
 
     await configureExtension(page, this.config);
+
+    // If using custom extension path, skip waiting for __recaptchaSolver
+    // because the extension might not inject it
+    if (this.config.extensionPath) {
+      console.log('[RecaptchaExtension] Extension loaded from path, skipping API check');
+      return;
+    }
+
     await waitForExtension(page);
   }
 

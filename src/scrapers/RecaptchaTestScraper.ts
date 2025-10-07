@@ -1,5 +1,6 @@
 import { BaseScraper } from '../core/BaseScraper';
-import type { ScraperParams } from '../types/scraper';
+import type { ScraperParams, ScraperConfig } from '../types/scraper';
+import path from 'path';
 
 interface RecaptchaTestData {
   url: string;
@@ -12,10 +13,30 @@ interface RecaptchaTestData {
 /**
  * reCAPTCHA Test Scraper
  * Example scraper that demonstrates reCAPTCHA handling
+ * Automatically loads Chrome extension from extensions/solver
  *
  * This scraper can be used to test reCAPTCHA solving on any URL
  */
 export class RecaptchaTestScraper extends BaseScraper<RecaptchaTestData> {
+  constructor(config: ScraperConfig = {}) {
+    // Auto-enable extension if recaptcha config doesn't exist or provider not set
+    const extensionPath = path.resolve(process.cwd(), 'extensions/solver');
+
+    // Merge config with extension defaults
+    const configWithExtension: ScraperConfig = {
+      ...config,
+      recaptcha: {
+        enabled: true,
+        provider: config.recaptcha?.provider || 'extension',
+        extensionPath: config.recaptcha?.extensionPath || extensionPath,
+        ...config.recaptcha,
+      },
+    };
+
+    super(configWithExtension);
+
+    console.log('[RecaptchaTestScraper] Chrome extension path:', extensionPath);
+  }
   protected async scrape(params: ScraperParams): Promise<RecaptchaTestData> {
     const { url } = params;
 
@@ -72,8 +93,28 @@ export class RecaptchaTestScraper extends BaseScraper<RecaptchaTestData> {
 /**
  * Google reCAPTCHA Demo Scraper
  * Specifically for testing with Google's reCAPTCHA demo page
+ * Automatically loads Chrome extension from extensions/solver
  */
 export class GoogleRecaptchaDemoScraper extends BaseScraper<any> {
+  constructor(config: ScraperConfig = {}) {
+    // Auto-enable extension if recaptcha config doesn't exist or provider not set
+    const extensionPath = path.resolve(process.cwd(), 'extensions/solver');
+
+    // Merge config with extension defaults
+    const configWithExtension: ScraperConfig = {
+      ...config,
+      recaptcha: {
+        enabled: true,
+        provider: config.recaptcha?.provider || 'extension',
+        extensionPath: config.recaptcha?.extensionPath || extensionPath,
+        ...config.recaptcha,
+      },
+    };
+
+    super(configWithExtension);
+
+    console.log('[GoogleRecaptchaDemoScraper] Chrome extension path:', extensionPath);
+  }
   protected async scrape(params: ScraperParams): Promise<any> {
     if (!this.page) {
       throw new Error('Page not initialized');
