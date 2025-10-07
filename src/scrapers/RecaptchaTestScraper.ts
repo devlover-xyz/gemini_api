@@ -109,9 +109,9 @@ export class RecaptchaTestScraper extends BaseScraper<RecaptchaTestData> {
 
       if (solved) {
         console.log('✅ reCAPTCHA solved successfully!');
-        // Wait longer after solving to ensure it's fully processed
-        console.log('Waiting 15 seconds for reCAPTCHA to be fully processed...');
-        await new Promise((resolve) => setTimeout(resolve, 15000));
+        // Wait briefly after solving to ensure it's fully processed
+        console.log('Waiting 3 seconds for reCAPTCHA to be fully processed...');
+        await new Promise((resolve) => setTimeout(resolve, 3000));
 
         // Check if reCAPTCHA reloaded (challenge appeared)
         const reloaded = await this.page.evaluate(() => {
@@ -408,9 +408,9 @@ export class GoogleRecaptchaDemoScraper extends BaseScraper<any> {
 
       if (solved) {
         console.log('[GoogleRecaptchaDemoScraper] ✅ reCAPTCHA solved!');
-        // Wait longer after solving to ensure it's fully processed
-        console.log('[GoogleRecaptchaDemoScraper] Waiting 15 seconds for reCAPTCHA to be fully processed...');
-        await new Promise((resolve) => setTimeout(resolve, 15000));
+        // Wait briefly after solving to ensure it's fully processed
+        console.log('[GoogleRecaptchaDemoScraper] Waiting 3 seconds for reCAPTCHA to be fully processed...');
+        await new Promise((resolve) => setTimeout(resolve, 3000));
 
         // Check if reCAPTCHA reloaded (challenge appeared)
         const reloaded = await this.page.evaluate(() => {
